@@ -1,6 +1,6 @@
 [![elm-package](https://img.shields.io/badge/elm-1.0.0-blue.svg)](http://package.elm-lang.org/packages/billstclair/elm-oauth-middleware/latest)
 
-This code is an adpatation of Asger Nelson's [`elm-web-server`](https://www.npmjs.com/package/elm-web-server) package. In particular, it was based off of his [hello-world](https://github.com/opvasger/elm-web-server/tree/master/examples/hello-world) example, with the WebSocket code removed.
+The server code is an adpatation of Asger Nelson's [`elm-web-server`](https://www.npmjs.com/package/elm-web-server) package. In particular, it was based off of his [hello-world](https://github.com/opvasger/elm-web-server/tree/master/examples/hello-world) example, with the WebSocket code removed.
 
 It implements a web server, which runs in [Node.js](https://nodejs.org/en/), and behaves as a redirect server for the OAuth [Authorization Code](https://tools.ietf.org/html/rfc6749#section-1.3.1) Grant Flow. It can be configured to operate as redirect server for a number of different applications served from a number of different hosts, including fake hosts, established through /etc/hosts on your development machine. The latter enables local development of client software, while using the server to do authorization during testing.
 
