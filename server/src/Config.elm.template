@@ -1,0 +1,24 @@
+-- Configuration for redirectUri server
+-- Copy this file to Config.elm, and edit the definition of configuration,
+-- then build the server code.
+
+
+module Config exposing (Configuration, configuration)
+
+
+type alias Configuration =
+    { clientId : String
+    , clientSecret : String
+    , redirectBackHosts : List String
+    }
+
+
+configuration : List Configuration
+configuration =
+    [ { clientId = "clientid"
+      , clientSecret = "secret"
+      , redirectBackHosts =
+            [ "xossbow.com"
+            ]
+      }
+    ]
