@@ -17,4 +17,6 @@ npm run-script setup
 
 # Run
 cd .../elm-oauth-middleware/server
-npm run-script
+npm start
+
+The server runs on port 3000. That number is wired in to `src/index.js`. You may not want to use that port for the outside world, so you may want to configure Apache or Nginc to reverse proxy port 80 for that port on some URL.
