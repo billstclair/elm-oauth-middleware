@@ -39,16 +39,21 @@ module OauthMiddleware
 
 -}
 
+import Json.Decode as JD exposing (Decoder)
+import Json.Encode as JE exposing (Value)
+import OAuth
+import OAuth.AuthorizationCode
+
 
 {-| Configuration for sending a request to the authorization server.
 -}
 type alias Authorization =
-    { url : String
-    , clientId : String
-    , redirectURi : String
+    { clientId : String
+    , redirectUri : String
     , redirectBackUri : String
     , scope : List String
     , state : Maybe String
+    , url : String
     }
 
 
@@ -58,8 +63,15 @@ This will cause the authorization server to ask the user to login. If successful
 
 -}
 authorize : Authorization -> Cmd msg
-authorize authorization =
-    Cmd.none
+authorize { clientId, redirectUri, redirectBackUri, scope, state, url } =
+    OAuth.AuthorizationCode.authorize
+        { clientId = clientId
+        , redirectUri = redirectUri
+        , responseType = OAuth.Code
+        , scope = scope
+        , state = Just <| encodeRedirectState redirectBackUri state
+        , url = url
+        }
 
 
 {-| Decode the state sent to the authorization server.
@@ -70,26 +82,102 @@ The server uses `encodeToken` to create this string.
 
 -}
 decodeToken : String -> Result String ( String, Maybe String )
-decodeToken encodedState =
-    Err "Not implemented."
+decodeToken json =
+    case JD.decodeString tokenStateDecoder json of
+        Err msg ->
+            Err msg
+
+        Ok { token, state } ->
+            Ok ( token, state )
 
 
 {-| Encode the token and user state for the redirectBackUri.
 -}
 encodeToken : String -> Maybe String -> String
 encodeToken token state =
-    "TODO"
+    JE.encode 0 <|
+        tokenStateEncoder
+            { token = token, state = state }
 
 
 {-| Decode the state encoded by `encodeRedirectState`.
 -}
 decodeRedirectState : String -> Result String ( String, Maybe String )
 decodeRedirectState json =
-    Err "Not implemented"
+    case JD.decodeString redirectStateDecoder json of
+        Err msg ->
+            Err msg
+
+        Ok { redirectBackUri, state } ->
+            Ok ( redirectBackUri, state )
 
 
 {-| Encode the redirectBackUri and user state for the authorization server.
 -}
 encodeRedirectState : String -> Maybe String -> String
 encodeRedirectState redirectBackUri state =
-    "TODO"
+    JE.encode 0 <|
+        redirectStateEncoder
+            { redirectBackUri = redirectBackUri, state = state }
+
+
+
+---
+--- Internals
+---
+
+
+type alias RedirectState =
+    { redirectBackUri : String
+    , state : Maybe String
+    }
+
+
+type alias TokenState =
+    { token : String
+    , state : Maybe String
+    }
+
+
+redirectStateDecoder : Decoder RedirectState
+redirectStateDecoder =
+    JD.map2 RedirectState
+        (JD.field "redirectBackUri" <| JD.string)
+        (JD.field "state" <| JD.nullable JD.string)
+
+
+redirectStateEncoder : RedirectState -> Value
+redirectStateEncoder state =
+    JE.object
+        [ ( "redirectBackUri", JE.string state.redirectBackUri )
+        , ( "state"
+          , case state.state of
+                Nothing ->
+                    JE.null
+
+                Just s ->
+                    JE.string s
+          )
+        ]
+
+
+tokenStateDecoder : Decoder TokenState
+tokenStateDecoder =
+    JD.map2 TokenState
+        (JD.field "token" <| JD.string)
+        (JD.field "state" <| JD.nullable JD.string)
+
+
+tokenStateEncoder : TokenState -> Value
+tokenStateEncoder state =
+    JE.object
+        [ ( "token", JE.string state.token )
+        , ( "state"
+          , case state.state of
+                Nothing ->
+                    JE.null
+
+                Just s ->
+                    JE.string s
+          )
+        ]
