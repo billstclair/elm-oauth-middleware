@@ -1,10 +1,10 @@
 [![elm-package](https://img.shields.io/badge/elm-1.0.0-blue.svg)](http://package.elm-lang.org/packages/billstclair/elm-oauth-middleware/latest)
 
-This package implement the client side of a complete OAuth [Authorization Code](https://tools.ietf.org/html/rfc6749#section-1.3.1) Grant Flow.
+This package implements the client side of a complete OAuth [Authorization Code](https://tools.ietf.org/html/rfc6749#section-1.3.1) Grant Flow.
 
-The server code is an adpatation of Asger Nelson's [`elm-web-server`](https://www.npmjs.com/package/elm-web-server) package. In particular, it was based off of his [hello-world](https://github.com/opvasger/elm-web-server/tree/master/examples/hello-world) example, with the WebSocket code removed.
+The grant flow requires a redirect server. That is also part of this package.
 
-It implements a web server, which runs in [Node.js](https://nodejs.org/en/), and behaves as a redirect server for the grant flow. It can be configured to operate as redirect server for a number of different applications served from a number of different hosts, including fake hosts, established through /etc/hosts on your development machine. The latter enables local development of client software, while using the server to do authorization during testing.
+How it works:
 
 Your Elm client software contacts the authorization server, via the `OauthMiddleware` module, passing the `clientId`, `<redirectUri>`, and `<state>`. That sends the customer to the server web site to authorize the OAuth connection. If she successfully logs in, the authorization server redirects to the `<redirectUri>` with:
 
@@ -17,3 +17,7 @@ The server configuration determines which redirect-back domains are allowed in t
 The `server` directory contains the server code, which you must configure and run at a `<redirectUri>` that you've associated with your client ID(s) and client secret(s). See its README file for configuration instructions.
 
 The `src` directory and this directory's `elm-package.json` implement the client side of the conversation, enabling initiating of the OAuth connection and processing the redirect when it comes back from the server.
+
+The server code is an adpatation of Asger Nelson's [`elm-web-server`](https://www.npmjs.com/package/elm-web-server) package. In particular, it was based off of his [hello-world](https://github.com/opvasger/elm-web-server/tree/master/examples/hello-world) example, with the WebSocket code removed.
+
+It implements a web server, which runs in [Node.js](https://nodejs.org/en/), and behaves as a redirect server for the grant flow. It can be configured to operate as redirect server for a number of different applications served from a number of different hosts, including fake hosts, established through /etc/hosts on your development machine. The latter enables local development of client software, while using the server to do authorization during testing.
