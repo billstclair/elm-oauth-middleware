@@ -69,7 +69,7 @@ type alias Authorization =
     , scope : List String
     , state : Maybe String
     , url : String
-    , redirectBackUri : Maybe String
+    , redirectBackUri : String
     , tokenKey : Maybe String
     }
 
@@ -146,7 +146,7 @@ encodeToken tokenState =
 {-| The state sent to the `redirectUri`.
 -}
 type alias RedirectState =
-    { redirectBackUri : Maybe String
+    { redirectBackUri : String
     , tokenKey : Maybe String
     , state : Maybe String
     }
@@ -176,7 +176,7 @@ encodeRedirectState redirectState =
 redirectStateDecoder : Decoder RedirectState
 redirectStateDecoder =
     JD.map3 RedirectState
-        (JD.field "redirectBackUri" <| JD.nullable JD.string)
+        (JD.field "redirectBackUri" JD.string)
         (JD.field "tokenKey" <| JD.nullable JD.string)
         (JD.field "state" <| JD.nullable JD.string)
 
@@ -194,7 +194,7 @@ nullableStringEncoder string =
 redirectStateEncoder : RedirectState -> Value
 redirectStateEncoder state =
     JE.object
-        [ ( "redirectBackUri", nullableStringEncoder state.redirectBackUri )
+        [ ( "redirectBackUri", JE.string state.redirectBackUri )
         , ( "tokenKey", nullableStringEncoder state.tokenKey )
         , ( "state", nullableStringEncoder state.state )
         ]

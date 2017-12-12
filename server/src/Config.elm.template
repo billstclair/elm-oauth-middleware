@@ -6,6 +6,8 @@
 module Config exposing (Configuration, configuration)
 
 
+{-| Do not change this.
+-}
 type alias Configuration =
     { clientId : String
     , clientSecret : String
@@ -13,6 +15,11 @@ type alias Configuration =
     }
 
 
+{-| Edit the value below with your cliend ID(s), secret(s), and host(s).
+
+Each element of `redirectBackHosts` should appear only once. They are used as keys to get `clientId` and `clientSecret`.
+
+-}
 configuration : List Configuration
 configuration =
     [ { clientId = "clientid"
