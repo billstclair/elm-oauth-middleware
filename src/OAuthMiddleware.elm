@@ -60,8 +60,6 @@ import Task exposing (Task)
 
 `redirectBackUri` is a Uri to redirect to AFTER the `redirectUri` exchanges the received code for an access token. If it is `Nothing`, no redirect will be done.
 
-`tokenKey` is a key that the client can use to explicitly ask the redirectUri for the token. If it is `Nothing`, the token will be forgotten once it is sent to the `redirectBackUri`. Otherwise, it will be held onto until requested, or a timeout, which is configurable in the server code.
-
 -}
 type alias Authorization =
     { clientId : String
@@ -70,7 +68,6 @@ type alias Authorization =
     , state : Maybe String
     , url : String
     , redirectBackUri : String
-    , tokenKey : Maybe String
     }
 
 
@@ -80,7 +77,7 @@ This will cause the authorization server to ask the user to login. If successful
 
 -}
 authorize : Authorization -> Cmd msg
-authorize { clientId, redirectUri, redirectBackUri, tokenKey, scope, state, url } =
+authorize { clientId, redirectUri, redirectBackUri, scope, state, url } =
     OAuth.AuthorizationCode.authorize
         { clientId = clientId
         , redirectUri = redirectUri
@@ -90,29 +87,10 @@ authorize { clientId, redirectUri, redirectBackUri, tokenKey, scope, state, url 
             Just <|
                 encodeRedirectState
                     { redirectBackUri = redirectBackUri
-                    , tokenKey = tokenKey
                     , state = state
                     }
         , url = url
         }
-
-
-{-| Get the token from the `redirectUri` when you can't handle a redirectBackUri.
-
-This happens when your client is a device rather than a web browser.
-
-You can pass the same `Authorization` here that you passed to `authorize`,
-but only the `redirectUri` and the `tokenKey` are used here.
-
-Returns a `Task` that does an HTTP request to the `redirectUri`.
-
-This function is not yet implemented. The Task it returns will always error.
-
--}
-getToken : Authorization -> Task String ( String, Maybe String )
-getToken { redirectUri, tokenKey } =
-    -- TODO
-    Task.fail "getToken is not yet implemented."
 
 
 {-| The token and user string returned by the `redirectUri` server.
@@ -147,7 +125,6 @@ encodeToken tokenState =
 -}
 type alias RedirectState =
     { redirectBackUri : String
-    , tokenKey : Maybe String
     , state : Maybe String
     }
 
@@ -175,9 +152,8 @@ encodeRedirectState redirectState =
 
 redirectStateDecoder : Decoder RedirectState
 redirectStateDecoder =
-    JD.map3 RedirectState
+    JD.map2 RedirectState
         (JD.field "redirectBackUri" JD.string)
-        (JD.field "tokenKey" <| JD.nullable JD.string)
         (JD.field "state" <| JD.nullable JD.string)
 
 
@@ -195,7 +171,6 @@ redirectStateEncoder : RedirectState -> Value
 redirectStateEncoder state =
     JE.object
         [ ( "redirectBackUri", JE.string state.redirectBackUri )
-        , ( "tokenKey", nullableStringEncoder state.tokenKey )
         , ( "state", nullableStringEncoder state.state )
         ]
 
@@ -211,12 +186,5 @@ tokenStateEncoder : TokenState -> Value
 tokenStateEncoder state =
     JE.object
         [ ( "token", JE.string state.token )
-        , ( "state"
-          , case state.state of
-                Nothing ->
-                    JE.null
-
-                Just s ->
-                    JE.string s
-          )
+        , ( "state", nullableStringEncoder state.state )
         ]

@@ -3,9 +3,13 @@ module Main exposing (main)
 import Config
 import Dict exposing (Dict)
 import Erl
+import Erl.Query
+import Http
+import OAuth exposing (Authentication(..))
+import OAuth.AuthorizationCode
 import OAuthMiddleware
 import Platform
-import Server.Http as Http exposing (Request, Response)
+import Server.Http
 
 
 config : List Config.Configuration
@@ -14,7 +18,8 @@ config =
 
 
 type alias ClientInfo =
-    { clientId : String
+    { tokenUri : String
+    , clientId : String
     , clientSecret : String
     }
 
@@ -23,15 +28,12 @@ type alias RedirectDict =
     Dict String ClientInfo
 
 
-type alias TokenDict =
-    Dict String String
-
-
 addConfigToDict : Config.Configuration -> RedirectDict -> RedirectDict
 addConfigToDict config dict =
     let
         info =
-            { clientId = config.clientId
+            { tokenUri = config.tokenUri
+            , clientId = config.clientId
             , clientSecret = config.clientSecret
             }
     in
@@ -50,19 +52,17 @@ buildRedirectDict configs =
 
 type alias Model =
     { redirectDict : RedirectDict
-    , tokenDict : TokenDict
     }
 
 
 type Msg
     = NoOp
-    | NewRequest Http.Request
+    | NewRequest Server.Http.Request
 
 
 init : ( Model, Cmd Msg )
 init =
     ( { redirectDict = buildRedirectDict config
-      , tokenDict = Dict.empty
       }
     , Cmd.none
     )
@@ -75,27 +75,106 @@ update msg model =
             newRequest request model
 
         NoOp ->
-            ( model, Cmd.none )
+            model ! []
 
 
-{-| We expect requests of two forms:
+{-| The request comes from the authorization server, and is of the form:
 
-1.  From the authorization server:
-    ...?code=<long code>&state=<from OAuthMiddleware.encodeRedirectState>
-
-2.  From OAuthMiddleWare.getToken
-    ...?getToken=tokenKey
+...?code=<long code>&state=<from OAuthMiddleware.encodeRedirectState>
 
 -}
-newRequest : Http.Request -> Model -> ( Model, Cmd Msg )
+newRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
 newRequest request model =
-    ( model
-    , Http.send
-        (Http.textResponse Http.okStatus "Hello World" request.id)
-    )
+    let
+        url =
+            Erl.parse request.url
+
+        host =
+            url.host
+
+        query =
+            url.query
+
+        codes =
+            Erl.Query.getValuesForKey "code" query
+
+        states =
+            Erl.Query.getValuesForKey "state" query
+    in
+    case ( codes, states ) of
+        ( [ code ], [ state ] ) ->
+            authRequest code state url request model
+
+        _ ->
+            model
+                ! [ Server.Http.send <|
+                        Server.Http.textResponse
+                            Server.Http.badRequestStatus
+                            "Bad request, missing code/state"
+                            request.id
+                  ]
 
 
-routeRequest : Result String Http.Request -> Msg
+tokenRequest : String -> String -> Model -> Result String (Http.Request OAuth.ResponseToken)
+tokenRequest redirectBackUri code model =
+    let
+        host =
+            Erl.extractHost redirectBackUri
+    in
+    case Dict.get host model.redirectDict of
+        Nothing ->
+            Err <| "Unknown redirect host: " ++ host
+
+        Just { tokenUri, clientId, clientSecret } ->
+            Ok <|
+                OAuth.AuthorizationCode.authenticate <|
+                    AuthorizationCode
+                        { credentials =
+                            { clientId = clientId
+                            , secret = clientSecret
+                            }
+                        , code = code
+                        , redirectUri = "" --do I really need this?
+                        , scope = [] --and this?
+                        , state = Nothing --and this?
+                        , url = tokenUri
+                        }
+
+
+authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
+authRequest code state url request model =
+    let
+        cmd =
+            case OAuthMiddleware.decodeRedirectState state of
+                Err err ->
+                    Server.Http.send <|
+                        Server.Http.textResponse
+                            Server.Http.badRequestStatus
+                            ("Malformed state: " ++ state)
+                            request.id
+
+                Ok { redirectBackUri, state } ->
+                    case tokenRequest redirectBackUri code model of
+                        Err err ->
+                            Server.Http.send <|
+                                Server.Http.textResponse
+                                    Server.Http.badRequestStatus
+                                    ("Unknown redirectBackUri: " ++ redirectBackUri)
+                                    request.id
+
+                        Ok tokenRequest ->
+                            -- TODO: Http.send the request and redirect back
+                            -- to our caller on return of the token.
+                            Server.Http.send <|
+                                Server.Http.textResponse
+                                    Server.Http.okStatus
+                                    (toString tokenRequest)
+                                    request.id
+    in
+    model ! [ cmd ]
+
+
+routeRequest : Result String Server.Http.Request -> Msg
 routeRequest incoming =
     case incoming of
         Ok request ->
@@ -108,7 +187,7 @@ routeRequest incoming =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Http.listen routeRequest
+        [ Server.Http.listen routeRequest
         ]
 
 

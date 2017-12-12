@@ -5,11 +5,13 @@
 
 module Config exposing (Configuration, configuration)
 
-
 {-| Do not change this.
 -}
+
+
 type alias Configuration =
-    { clientId : String
+    { tokenUri : String
+    , clientId : String
     , clientSecret : String
     , redirectBackHosts : List String
     }
@@ -22,7 +24,8 @@ Each element of `redirectBackHosts` should appear only once. They are used as ke
 -}
 configuration : List Configuration
 configuration =
-    [ { clientId = "clientid"
+    [ { tokenUri = "https://example.com/oath/token"
+      , clientId = "clientid"
       , clientSecret = "secret"
       , redirectBackHosts =
             [ "xossbow.com"
