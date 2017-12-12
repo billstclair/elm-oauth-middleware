@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------
 --
--- OauthMiddleware.elm
+-- OAuthMiddleware.elm
 -- Client side of an OAuth Authorization Code Grant Flow
 -- Copyright (c) 2017 Bill St. Clair <billstclair@gmail.com>
 -- Some rights reserved.
@@ -10,7 +10,7 @@
 ----------------------------------------------------------------------
 
 
-module OauthMiddleware
+module OAuthMiddleware
     exposing
         ( Authorization
         , RedirectState
@@ -103,6 +103,10 @@ This happens when your client is a device rather than a web browser.
 
 You can pass the same `Authorization` here that you passed to `authorize`,
 but only the `redirectUri` and the `tokenKey` are used here.
+
+Returns a `Task` that does an HTTP request to the `redirectUri`.
+
+This function is not yet implemented. The Task it returns will always error.
 
 -}
 getToken : Authorization -> Task String ( String, Maybe String )

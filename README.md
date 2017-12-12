@@ -6,7 +6,7 @@ The grant flow requires a redirect server. That is also part of this package.
 
 How it works:
 
-Your Elm client software contacts the authorization server, via the `OauthMiddleware` module, passing the `clientId`, `<redirectUri>`, and `<state>`. That sends the customer to the server web site to authorize the OAuth connection. If she successfully logs in, the authorization server redirects to the `<redirectUri>` with:
+Your Elm client software contacts the authorization server, via the `OAuthMiddleware` module, passing the `clientId`, `<redirectUri>`, and `<state>`. That sends the customer to the server web site to authorize the OAuth connection. If she successfully logs in, the authorization server redirects to the `<redirectUri>` with:
 
     <redirectUri>?code=<long hex string>&state=<state>
     
