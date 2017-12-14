@@ -86,7 +86,9 @@ authorize { clientId, redirectUri, redirectBackUri, scope, state, url } =
         , state =
             Just <|
                 encodeRedirectState
-                    { redirectBackUri = redirectBackUri
+                    { redirectUri = redirectUri
+                    , scope = scope
+                    , redirectBackUri = redirectBackUri
                     , state = state
                     }
         , url = url
@@ -124,7 +126,9 @@ encodeToken tokenState =
 {-| The state sent to the `redirectUri`.
 -}
 type alias RedirectState =
-    { redirectBackUri : String
+    { redirectUri : String
+    , scope : List String
+    , redirectBackUri : String
     , state : Maybe String
     }
 
@@ -152,7 +156,9 @@ encodeRedirectState redirectState =
 
 redirectStateDecoder : Decoder RedirectState
 redirectStateDecoder =
-    JD.map2 RedirectState
+    JD.map4 RedirectState
+        (JD.field "redirectUri" JD.string)
+        (JD.field "scope" <| JD.list JD.string)
         (JD.field "redirectBackUri" JD.string)
         (JD.field "state" <| JD.nullable JD.string)
 
@@ -170,7 +176,9 @@ nullableStringEncoder string =
 redirectStateEncoder : RedirectState -> Value
 redirectStateEncoder state =
     JE.object
-        [ ( "redirectBackUri", JE.string state.redirectBackUri )
+        [ ( "redirectUri", JE.string state.redirectUri )
+        , ( "scope", JE.list <| List.map JE.string state.scope )
+        , ( "redirectBackUri", JE.string state.redirectBackUri )
         , ( "state", nullableStringEncoder state.state )
         ]
 

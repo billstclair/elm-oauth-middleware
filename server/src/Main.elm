@@ -58,6 +58,7 @@ type alias Model =
 type Msg
     = NoOp
     | NewRequest Server.Http.Request
+    | ReceiveToken Server.Http.Id String (Maybe String) (Result Http.Error OAuth.ResponseToken)
 
 
 init : ( Model, Cmd Msg )
@@ -74,6 +75,15 @@ update msg model =
         NewRequest request ->
             newRequest request model
 
+        ReceiveToken id redirectBackUri state result ->
+            model
+                ! [ Server.Http.send <|
+                        Server.Http.textResponse
+                            Server.Http.badRequestStatus
+                            (toString ( redirectBackUri, state, result ))
+                            id
+                  ]
+
         NoOp ->
             model ! []
 
@@ -81,6 +91,8 @@ update msg model =
 {-| The request comes from the authorization server, and is of the form:
 
 ...?code=<long code>&state=<from OAuthMiddleware.encodeRedirectState>
+
+We can also get "?error=access_denied&state=<foo>"
 
 -}
 newRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
@@ -115,8 +127,8 @@ newRequest request model =
                   ]
 
 
-tokenRequest : String -> String -> Model -> Result String (Http.Request OAuth.ResponseToken)
-tokenRequest redirectBackUri code model =
+tokenRequest : String -> List String -> String -> String -> Model -> Result String (Http.Request OAuth.ResponseToken)
+tokenRequest redirectUri scope redirectBackUri code model =
     let
         host =
             Erl.extractHost redirectBackUri
@@ -134,9 +146,9 @@ tokenRequest redirectBackUri code model =
                             , secret = clientSecret
                             }
                         , code = code
-                        , redirectUri = "" --do I really need this?
-                        , scope = [] --and this?
-                        , state = Nothing --and this?
+                        , redirectUri = redirectUri
+                        , scope = scope
+                        , state = Nothing --don't need to get this back
                         , url = tokenUri
                         }
 
@@ -153,8 +165,8 @@ authRequest code state url request model =
                             ("Malformed state: " ++ state)
                             request.id
 
-                Ok { redirectBackUri, state } ->
-                    case tokenRequest redirectBackUri code model of
+                Ok { redirectUri, scope, redirectBackUri, state } ->
+                    case tokenRequest redirectUri scope redirectBackUri code model of
                         Err err ->
                             Server.Http.send <|
                                 Server.Http.textResponse
@@ -163,13 +175,9 @@ authRequest code state url request model =
                                     request.id
 
                         Ok tokenRequest ->
-                            -- TODO: Http.send the request and redirect back
-                            -- to our caller on return of the token.
-                            Server.Http.send <|
-                                Server.Http.textResponse
-                                    Server.Http.okStatus
-                                    (toString tokenRequest)
-                                    request.id
+                            Http.send
+                                (ReceiveToken request.id redirectBackUri state)
+                                tokenRequest
     in
     model ! [ cmd ]
 
