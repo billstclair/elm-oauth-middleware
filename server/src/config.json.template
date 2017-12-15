@@ -1,0 +1,12 @@
+[ {"comment": "Edit the value below with your cliend ID(s), secret(s), and host(s).
+   Each element of a `redirectBackHosts` should appear only once.
+   They are used as keys to get `clientId` and `clientSecret`.
+   You may have as many objects here as you want.
+   This file is probed every two seconds, so changes take effect quickly."
+   },
+  {"tokenUri": "https://example.com/oath/token",
+   "clientId": "clientid",
+   "clientSecret": "secret",
+   "redirectBackHosts": ["example.com"]
+  }
+]

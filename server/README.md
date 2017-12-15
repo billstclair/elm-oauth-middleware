@@ -8,12 +8,12 @@ git clone https://github.com/billstclair/elm-oauth-middleware.git
 
 # Configure
 cd .../elm-oath-middleware/server
-cp src/Config.elm.template src/Config.elm
-# Edit src/Config.elm with your configuration details.
+cp src/config.json.template src/config.json
+# Edit src/config.json with your configuration details.
 
 # Build
 cd .../elm-oauth-middleware/server
-npm run-script setup
+npm run setup
 
 # Run
 cd .../elm-oauth-middleware/server

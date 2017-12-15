@@ -1,8 +1,16 @@
-var Http = require("http")
-var Ews = require("./ews.js")
-var App = require("./elm.js")
+const fs = require('fs')
+const Http = require("http")
+const Ews = require("./ews.js")
+const App = require("./elm.js")
 
-var worker = App.Main.worker()
+const worker = App.Main.worker()
+const receiveFile = worker.ports.receiveFile
+
+worker.ports.getFile.subscribe(function(filename) {
+  fs.readFile(filename, 'utf8', function(err, data) {
+    receiveFile.send(err ? null : data)
+  })
+})
 
 var httpServer = Http.createServer(Ews.createRequestListener(worker))
 

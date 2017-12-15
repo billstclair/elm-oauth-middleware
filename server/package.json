@@ -10,7 +10,7 @@
     "start": "node build/index.js",
     "make": "elm-make src/Main.elm --output build/elm.js",
     "make-and-go": "npm run make && npm start",
-    "build": "cp src/index.js build/index.js && cp ews/index.js build/ews.js && elm-make src/Main.elm --output build/elm.js",
+    "build": "cp src/config.json build/ && cp src/index.js build/ && cp ews/index.js build/ews.js && elm-make src/Main.elm --output build/elm.js",
     "setup": "rm -rf build elm-stuff node_modules && npm i -y && elm-package install -y && mkdir build && npm run build"
   },
   "keywords": [],

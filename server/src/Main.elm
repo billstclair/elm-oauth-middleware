@@ -1,20 +1,31 @@
-module Main exposing (main)
+port module Main exposing (main)
 
-import Config
+import Debug
 import Dict exposing (Dict)
 import Erl
 import Erl.Query
 import Http
+import Json.Decode as JD
 import OAuth exposing (Authentication(..))
 import OAuth.AuthorizationCode
 import OAuthMiddleware
 import Platform
 import Server.Http
+import Time exposing (Time)
 
 
-config : List Config.Configuration
-config =
-    Config.configuration
+port getFile : String -> Cmd msg
+
+
+port receiveFile : (Maybe String -> msg) -> Sub msg
+
+
+type alias Configuration =
+    { tokenUri : String
+    , clientId : String
+    , clientSecret : String
+    , redirectBackHosts : List String
+    }
 
 
 type alias ClientInfo =
@@ -28,7 +39,7 @@ type alias RedirectDict =
     Dict String ClientInfo
 
 
-addConfigToDict : Config.Configuration -> RedirectDict -> RedirectDict
+addConfigToDict : Configuration -> RedirectDict -> RedirectDict
 addConfigToDict config dict =
     let
         info =
@@ -45,33 +56,138 @@ addConfigToDict config dict =
         config.redirectBackHosts
 
 
-buildRedirectDict : List Config.Configuration -> RedirectDict
+buildRedirectDict : List Configuration -> RedirectDict
 buildRedirectDict configs =
     List.foldl addConfigToDict Dict.empty configs
 
 
 type alias Model =
-    { redirectDict : RedirectDict
+    { configString : String
+    , config : List Configuration
+    , redirectDict : RedirectDict
     }
 
 
 type Msg
     = NoOp
+    | ReceiveConfig (Maybe String)
+    | ProbeConfig Time
     | NewRequest Server.Http.Request
     | ReceiveToken Server.Http.Id String (Maybe String) (Result Http.Error OAuth.ResponseToken)
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { redirectDict = buildRedirectDict config
+    ( { configString = ""
+      , config = []
+      , redirectDict = Dict.empty
       }
-    , Cmd.none
+    , getConfig
     )
+
+
+configFile : String
+configFile =
+    "build/config.json"
+
+
+getConfig : Cmd msg
+getConfig =
+    getFile configFile
+
+
+emptyConfig : Configuration
+emptyConfig =
+    { tokenUri = ""
+    , clientId = ""
+    , clientSecret = ""
+    , redirectBackHosts = []
+    }
+
+
+configsDecoder : JD.Decoder (List Configuration)
+configsDecoder =
+    (JD.list <|
+        JD.oneOf
+            [ configDecoder
+            , commentDecoder
+            ]
+    )
+        |> JD.map (List.filter <| (/=) emptyConfig)
+
+
+commentDecoder : JD.Decoder Configuration
+commentDecoder =
+    JD.field "comment" JD.string
+        |> JD.andThen (\_ -> JD.succeed emptyConfig)
+
+
+configDecoder : JD.Decoder Configuration
+configDecoder =
+    JD.map4 Configuration
+        (JD.field "tokenUri" JD.string)
+        (JD.field "clientId" JD.string)
+        (JD.field "clientSecret" JD.string)
+        (JD.field "redirectBackHosts" <| JD.list JD.string)
+
+
+receiveConfig : Maybe String -> Model -> ( Model, Cmd Msg )
+receiveConfig file model =
+    case file of
+        Nothing ->
+            let
+                m1 =
+                    Debug.log "Notice" ("Error reading " ++ configFile)
+            in
+            let
+                m2 =
+                    if model.config == [] then
+                        Debug.log "Fatal"
+                            "Empty configuration makes me a very useless server."
+                    else
+                        ""
+            in
+            model ! []
+
+        Just json ->
+            if json == model.configString then
+                model ! []
+            else
+                case JD.decodeString configsDecoder json of
+                    Err msg ->
+                        let
+                            m =
+                                Debug.log "Error" msg
+                        in
+                        receiveConfig Nothing model
+
+                    Ok config ->
+                        let
+                            m =
+                                if config == [] then
+                                    Debug.log "Notice"
+                                        "Empty configuration disables server."
+                                else
+                                    Debug.log "Notice"
+                                        ("Successfully parsed " ++ configFile)
+                        in
+                        { model
+                            | configString = json
+                            , config = config
+                            , redirectDict = buildRedirectDict config
+                        }
+                            ! []
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ReceiveConfig file ->
+            receiveConfig file model
+
+        ProbeConfig _ ->
+            model ! [ getConfig ]
+
         NewRequest request ->
             newRequest request model
 
@@ -196,6 +312,8 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Server.Http.listen routeRequest
+        , receiveFile ReceiveConfig
+        , Time.every (2 * Time.second) ProbeConfig
         ]
 
 
