@@ -14,7 +14,7 @@ The redirect server passes the code, the client id, and the client secret (obtai
 
 The server configuration determines which redirect-back domains are allowed in the `<state>` and their corresponding client IDs and client secrets. This prevents the server from being used by all and sundry to piggy-back on top of its client IDs and client secrets to gain authorization.
 
-The `server` directory contains the server code, which you must configure and run at a `<redirectUri>` that you've associated with your client ID(s) and client secret(s). See its README file for configuration instructions.
+The [`server`](https://github.com/billstclair/elm-oauth-middleware/tree/master/server) directory contains the server code, which you must configure and run at a `<redirectUri>` that you've associated with your client ID(s) and client secret(s). See its README file for configuration instructions.
 
 The `src` directory and this directory's `elm-package.json` implement the client side of the conversation, enabling initiating of the OAuth connection and processing the redirect when it comes back from the server.
 
