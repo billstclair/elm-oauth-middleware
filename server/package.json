@@ -5,7 +5,7 @@
     "type" : "git"
   , "url" : "https://github.com/billstclair/elm-oauth-middleware.git"
   },
-  "description": "A minimal example of using elm-web-server",
+  "description": "An OAuth redirect server to hide the client secret from web apps.",
   "scripts": {
     "start": "node build/index.js",
     "make": "elm-make src/Main.elm --output build/elm.js",
