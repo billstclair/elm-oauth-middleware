@@ -5,8 +5,10 @@ port module Server.Http
         , Request
         , Response
         , Status
+        , addHeader
         , badRequestStatus
         , emptyResponse
+        , foundStatus
         , htmlResponse
         , internalErrorStatus
         , jsonResponse
@@ -107,6 +109,14 @@ type Response
         }
 
 
+addHeader : String -> String -> Response -> Response
+addHeader key value (Response response) =
+    Response
+        { response
+            | headers = Dict.insert key value response.headers
+        }
+
+
 htmlResponse : Status -> Html.Document -> Id -> Response
 htmlResponse status html id =
     Response
@@ -184,6 +194,11 @@ type alias Status =
 okStatus : Status
 okStatus =
     Status 200 "ok"
+
+
+foundStatus : Status
+foundStatus =
+    Status 302 "found"
 
 
 badRequestStatus : Status

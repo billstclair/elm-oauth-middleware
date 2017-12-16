@@ -209,10 +209,20 @@ update msg model =
 
                 query =
                     Q.add key value []
+                        --is html query escaping correct here?
                         |> Q.toString
+
+                location =
+                    redirectBackUri ++ query
+
+                response =
+                    Server.Http.emptyResponse
+                        Server.Http.foundStatus
+                        id
+                        |> Server.Http.addHeader "location" location
             in
             model
-                ! [ Navigation.load <| redirectBackUri ++ query ]
+                ! [ Server.Http.send response ]
 
         NoOp ->
             model ! []
