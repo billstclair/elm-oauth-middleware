@@ -287,7 +287,7 @@ tokenRequest redirectUri scope redirectBackUri code model =
                         , code = code
                         , redirectUri = redirectUri
                         , scope = scope
-                        , state = Nothing --don't need to get this back
+                        , state = Nothing --we already have this in our hand
                         , url = tokenUri
                         }
 
