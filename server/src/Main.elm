@@ -6,7 +6,6 @@ import Erl
 import Erl.Query as Q
 import Http
 import Json.Decode as JD
-import Navigation
 import OAuth exposing (Authentication(..))
 import OAuth.AuthorizationCode
 import OAuthMiddleware
