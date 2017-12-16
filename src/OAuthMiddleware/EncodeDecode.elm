@@ -44,7 +44,9 @@ import OAuth
 {-| The state sent to the `redirectUri`.
 -}
 type alias RedirectState =
-    { redirectUri : String
+    { clientId : String
+    , tokenUri : String
+    , redirectUri : String
     , scope : List String
     , redirectBackUri : String
     , state : Maybe String
@@ -57,7 +59,9 @@ by the redirect server.
 -}
 redirectStateDecoder : Decoder RedirectState
 redirectStateDecoder =
-    JD.map4 RedirectState
+    JD.map6 RedirectState
+        (JD.field "clientId" JD.string)
+        (JD.field "tokenUri" JD.string)
         (JD.field "redirectUri" JD.string)
         (JD.field "scope" <| JD.list JD.string)
         (JD.field "redirectBackUri" JD.string)
@@ -83,7 +87,9 @@ by the redirect server.
 redirectStateEncoder : RedirectState -> Value
 redirectStateEncoder state =
     JE.object
-        [ ( "redirectUri", JE.string state.redirectUri )
+        [ ( "clientId", JE.string state.clientId )
+        , ( "tokenUri", JE.string state.tokenUri )
+        , ( "redirectUri", JE.string state.redirectUri )
         , ( "scope", JE.list <| List.map JE.string state.scope )
         , ( "redirectBackUri", JE.string state.redirectBackUri )
         , ( "state", nullableStringEncoder state.state )

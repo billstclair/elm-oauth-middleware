@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cp package.json site/
-cp -R build site/
+cp -p package.json site/
+cp -Rp build site/

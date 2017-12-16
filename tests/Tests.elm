@@ -91,7 +91,9 @@ insertEncodeDecode encodeDecode ( name, data ) =
 redirectStateTestData : List ( String, RedirectState -> Result String RedirectState, RedirectState )
 redirectStateTestData =
     [ ( "RedirectState"
-      , { redirectUri = "https://xossbow.com/oath/xossbow/"
+      , { clientId = "foo"
+        , tokenUri = "https://api.gab.ai/oauth/token"
+        , redirectUri = "https://xossbow.com/oath/xossbow/"
         , scope = [ "read", "write" ]
         , redirectBackUri = "http://xossbow-devtest.com"
         , state = Just "foo"

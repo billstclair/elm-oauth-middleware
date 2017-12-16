@@ -3,5 +3,6 @@
 npm run build
 bin/populate-site
 cd site
-rsyncit
+rsyncit -av --exclude=config.json --exclude=.sshdir --exclude=.gitignore ./
+
 

@@ -8,7 +8,7 @@ import Http
 import Json.Decode as JD
 import OAuth exposing (Authentication(..))
 import OAuth.AuthorizationCode
-import OAuthMiddleware
+import OAuthMiddleware exposing (RedirectState)
 import Platform
 import Server.Http
 import Time exposing (Time)
@@ -28,32 +28,13 @@ type alias Configuration =
     }
 
 
-type alias ClientInfo =
-    { tokenUri : String
-    , clientId : String
-    , clientSecret : String
-    }
-
-
 type alias RedirectDict =
-    Dict String ClientInfo
+    Dict ( String, String ) Configuration
 
 
 addConfigToDict : Configuration -> RedirectDict -> RedirectDict
 addConfigToDict config dict =
-    let
-        info =
-            { tokenUri = config.tokenUri
-            , clientId = config.clientId
-            , clientSecret = config.clientSecret
-            }
-    in
-    List.foldl
-        (\host dict ->
-            Dict.insert host info dict
-        )
-        dict
-        config.redirectBackHosts
+    Dict.insert ( config.clientId, config.tokenUri ) config dict
 
 
 buildRedirectDict : List Configuration -> RedirectDict
@@ -135,19 +116,23 @@ receiveConfig : Maybe String -> Model -> ( Model, Cmd Msg )
 receiveConfig file model =
     case file of
         Nothing ->
-            let
-                m1 =
-                    Debug.log "Notice" ("Error reading " ++ configFile)
-            in
-            let
-                m2 =
-                    if model.config == [] then
-                        Debug.log "Fatal"
-                            "Empty configuration makes me a very useless server."
-                    else
-                        ""
-            in
-            model ! []
+            if model.configString == "error" then
+                model ! []
+            else
+                let
+                    m1 =
+                        Debug.log "Notice" ("Error reading " ++ configFile)
+                in
+                let
+                    m2 =
+                        if model.config == [] then
+                            Debug.log "Fatal"
+                                "Empty configuration makes me a very useless server."
+                        else
+                            ""
+                in
+                { model | configString = "error" }
+                    ! []
 
         Just json ->
             if json == model.configString then
@@ -159,14 +144,23 @@ receiveConfig file model =
                             m =
                                 Debug.log "Error" msg
                         in
-                        receiveConfig Nothing model
+                        let
+                            m2 =
+                                if model.config == [] then
+                                    Debug.log "Fatal"
+                                        "Empty configuration makes me a very useless server."
+                                else
+                                    ""
+                        in
+                        { model | configString = json }
+                            ! []
 
                     Ok config ->
                         let
                             m =
                                 if config == [] then
                                     Debug.log "Notice"
-                                        "Empty configuration disables server."
+                                        "Empty configuration disabled server."
                                 else
                                     Debug.log "Notice"
                                         ("Successfully parsed " ++ configFile)
@@ -266,30 +260,41 @@ newRequest request model =
                   ]
 
 
-tokenRequest : String -> List String -> String -> String -> Model -> Result String (Http.Request OAuth.ResponseToken)
-tokenRequest redirectUri scope redirectBackUri code model =
+tokenRequest : RedirectState -> String -> Model -> Result String (Http.Request OAuth.ResponseToken)
+tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code model =
     let
+        key =
+            ( clientId, tokenUri )
+
         host =
             Erl.extractHost redirectBackUri
     in
-    case Dict.get host model.redirectDict of
+    case Dict.get key model.redirectDict of
         Nothing ->
-            Err <| "Unknown redirect host: " ++ host
+            Err <|
+                "Unknown (clientId, tokenUri): ("
+                    ++ clientId
+                    ++ ", "
+                    ++ tokenUri
+                    ++ ")"
 
-        Just { tokenUri, clientId, clientSecret } ->
-            Ok <|
-                OAuth.AuthorizationCode.authenticate <|
-                    AuthorizationCode
-                        { credentials =
-                            { clientId = clientId
-                            , secret = clientSecret
+        Just { clientSecret, redirectBackHosts } ->
+            if not <| List.member host redirectBackHosts then
+                Err <| "Unknown redirect host: " ++ host
+            else
+                Ok <|
+                    OAuth.AuthorizationCode.authenticate <|
+                        AuthorizationCode
+                            { credentials =
+                                { clientId = clientId
+                                , secret = clientSecret
+                                }
+                            , code = code
+                            , redirectUri = redirectUri
+                            , scope = scope
+                            , state = Nothing --we already have this in our hand
+                            , url = tokenUri
                             }
-                        , code = code
-                        , redirectUri = redirectUri
-                        , scope = scope
-                        , state = Nothing --we already have this in our hand
-                        , url = tokenUri
-                        }
 
 
 authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
@@ -304,18 +309,22 @@ authRequest code state url request model =
                             ("Malformed state: " ++ state)
                             request.id
 
-                Ok { redirectUri, scope, redirectBackUri, state } ->
-                    case tokenRequest redirectUri scope redirectBackUri code model of
-                        Err err ->
+                Ok redirectState ->
+                    case tokenRequest redirectState code model of
+                        Err msg ->
                             Server.Http.send <|
                                 Server.Http.textResponse
                                     Server.Http.badRequestStatus
-                                    ("Unknown redirectBackUri: " ++ redirectBackUri)
+                                    msg
                                     request.id
 
                         Ok tokenRequest ->
                             Http.send
-                                (ReceiveToken request.id redirectBackUri state)
+                                (ReceiveToken
+                                    request.id
+                                    redirectState.redirectBackUri
+                                    redirectState.state
+                                )
                                 tokenRequest
     in
     model ! [ cmd ]
