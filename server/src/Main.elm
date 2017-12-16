@@ -187,22 +187,31 @@ update msg model =
 
         ReceiveToken id redirectBackUri state result ->
             let
-                ( key, value ) =
+                queries =
                     case result of
                         Err err ->
-                            ( OAuthMiddleware.responseTokenQueryError
-                            , toString err
-                            )
+                            List.concat
+                                [ case state of
+                                    Nothing ->
+                                        []
+
+                                    Just s ->
+                                        [ ( "state", s ) ]
+                                , [ ( OAuthMiddleware.responseTokenQueryError
+                                    , toString err
+                                    )
+                                  ]
+                                ]
 
                         Ok responseToken ->
-                            ( OAuthMiddleware.responseTokenQuery
-                            , OAuthMiddleware.encodeResponseToken
-                                { responseToken | state = state }
-                            )
+                            [ ( OAuthMiddleware.responseTokenQuery
+                              , OAuthMiddleware.encodeResponseToken
+                                    { responseToken | state = state }
+                              )
+                            ]
 
                 query =
-                    Q.add key value []
-                        --is html query escaping correct here?
+                    List.foldl (\( k, v ) dict -> Q.add k v dict) [] queries
                         |> Q.toString
 
                 location =
