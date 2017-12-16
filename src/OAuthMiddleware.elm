@@ -14,12 +14,11 @@ module OAuthMiddleware
     exposing
         ( Authorization
         , RedirectState
-        , TokenState
         , authorize
         , decodeRedirectState
-        , decodeToken
+        , decodeResponseToken
         , encodeRedirectState
-        , encodeToken
+        , encodeResponseToken
         )
 
 {-| Client side of OAuth Authorization Code Grant Flow.
@@ -27,17 +26,18 @@ module OAuthMiddleware
 
 # Types
 
-@docs Authorization, RedirectState, TokenState
+@docs Authorization, RedirectState
 
 
 # Client-side functions
 
-@docs authorize, decodeToken
+@docs authorize
 
 
 # Encode/Decode state for passing over the wire.
 
-@docs encodeToken, decodeRedirectState, encodeRedirectState
+@docs encodeRedirectState, decodeRedirectState
+@docs encodeResponseToken, decodeResponseToken
 
 -}
 
@@ -95,34 +95,6 @@ authorize { clientId, redirectUri, redirectBackUri, scope, state, url } =
         }
 
 
-{-| The token and user string returned by the `redirectUri` server.
--}
-type alias TokenState =
-    { token : String
-    , state : Maybe String
-    }
-
-
-{-| Decode the state sent to the authorization server.
-
-When your code is invoked at the `Authorization.redirectBackUri` passed to `authorize`, you call `receiveToken` with the `state` you receive in the URL, and this function decodes it into an authorization token and the `Authorization.state` you passed to `authorize`.
-
-The server uses `encodeToken` to create this string.
-
--}
-decodeToken : String -> Result String TokenState
-decodeToken json =
-    JD.decodeString tokenStateDecoder json
-
-
-{-| Encode the token and user state for the redirectBackUri.
--}
-encodeToken : TokenState -> String
-encodeToken tokenState =
-    JE.encode 0 <|
-        tokenStateEncoder tokenState
-
-
 {-| The state sent to the `redirectUri`.
 -}
 type alias RedirectState =
@@ -146,6 +118,23 @@ encodeRedirectState : RedirectState -> String
 encodeRedirectState redirectState =
     JE.encode 0 <|
         redirectStateEncoder redirectState
+
+
+{-| Decode the `ResponseToken` that is sent back to the `redirectUri`
+from the redirect server.
+-}
+decodeResponseToken : String -> Result String OAuth.ResponseToken
+decodeResponseToken json =
+    JD.decodeString responseTokenDecoder json
+
+
+{-| Encode the `ResponseToken` that is received by the redirect server
+from its call to `OAuth.AuthorizationCode.authenticate`.
+-}
+encodeResponseToken : OAuth.ResponseToken -> String
+encodeResponseToken responseToken =
+    JE.encode 0 <|
+        responseTokenEncoder responseToken
 
 
 
@@ -183,16 +172,102 @@ redirectStateEncoder state =
         ]
 
 
-tokenStateDecoder : Decoder TokenState
-tokenStateDecoder =
-    JD.map2 TokenState
-        (JD.field "token" <| JD.string)
-        (JD.field "state" <| JD.nullable JD.string)
+tokenEncoderFields : OAuth.Token -> List ( String, Value )
+tokenEncoderFields token =
+    [ ( "access_token"
+      , case token of
+            OAuth.Bearer s ->
+                JE.string s
+      )
+    , ( "token_type", JE.string "bearer" )
+    ]
 
 
-tokenStateEncoder : TokenState -> Value
-tokenStateEncoder state =
-    JE.object
-        [ ( "token", JE.string state.token )
-        , ( "state", nullableStringEncoder state.state )
+responseTokenEncoder : OAuth.ResponseToken -> Value
+responseTokenEncoder responseToken =
+    List.concat
+        [ tokenEncoderFields responseToken.token
+        , case responseToken.expiresIn of
+            Nothing ->
+                []
+
+            Just ex ->
+                [ ( "expires_in", JE.int ex ) ]
+        , case responseToken.refreshToken of
+            Nothing ->
+                []
+
+            Just token ->
+                tokenEncoderFields token
+        , case responseToken.scope of
+            [] ->
+                []
+
+            scope ->
+                [ ( "scope", JE.list <| List.map JE.string scope ) ]
+        , case responseToken.state of
+            Nothing ->
+                []
+
+            Just state ->
+                [ ( "state", JE.string state ) ]
         ]
+        |> JE.object
+
+
+
+---
+--- From the truqu/elm-oauth2 Internal module.
+--- Not exported, so I had to copy it.
+---
+
+
+responseTokenDecoder : Decoder OAuth.ResponseToken
+responseTokenDecoder =
+    JD.oneOf
+        [ JD.map5
+            (\token expiresIn refreshToken scope state ->
+                { token = token
+                , expiresIn = expiresIn
+                , refreshToken = refreshToken
+                , scope = Maybe.withDefault [] scope
+                , state = state
+                }
+            )
+            accessTokenDecoder
+            (JD.maybe <| JD.field "expires_in" JD.int)
+            refreshTokenDecoder
+            (JD.maybe <| JD.field "scope" (JD.list JD.string))
+            (JD.maybe <| JD.field "state" JD.string)
+        ]
+
+
+accessTokenDecoder : JD.Decoder OAuth.Token
+accessTokenDecoder =
+    let
+        mtoken =
+            JD.map2 makeToken
+                (JD.field "access_token" JD.string |> JD.map Just)
+                (JD.field "token_type" JD.string)
+
+        failUnless =
+            Maybe.map JD.succeed >> Maybe.withDefault (JD.fail "can't decode token")
+    in
+    JD.andThen failUnless mtoken
+
+
+refreshTokenDecoder : JD.Decoder (Maybe OAuth.Token)
+refreshTokenDecoder =
+    JD.map2 makeToken
+        (JD.maybe <| JD.field "refresh_token" JD.string)
+        (JD.field "token_type" JD.string)
+
+
+makeToken : Maybe String -> String -> Maybe OAuth.Token
+makeToken mtoken tokenType =
+    case ( mtoken, String.toLower tokenType ) of
+        ( Just token, "bearer" ) ->
+            Just <| OAuth.Bearer token
+
+        _ ->
+            Nothing

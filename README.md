@@ -2,9 +2,9 @@
 
 This package implements the client side of a complete OAuth [Authorization Code](https://tools.ietf.org/html/rfc6749#section-1.3.1) Grant Flow.
 
-The grant flow requires a redirect server. That is also part of this package.
+The grant flow requires a redirect server. That is also included in this package, but you must set it up on a server machine running Node.js. One server can handle multiple OAuth authorization services and webapps requiring authorization.
 
-How it works:
+# How it works
 
 Your Elm client software contacts the authorization server, via the `OAuthMiddleware` module, passing the `clientId`, `<redirectUri>`, and `<state>`. That sends the customer to the server web site to authorize the OAuth connection. If she successfully logs in, the authorization server redirects to the `<redirectUri>` with:
 
@@ -14,7 +14,9 @@ The redirect server passes the code, the client id, and the client secret (obtai
 
 The server configuration determines which redirect-back domains are allowed in the `<state>` and their corresponding client IDs and client secrets. This prevents the server from being used by all and sundry to piggy-back on top of its client IDs and client secrets to gain authorization.
 
-The [`server` directory](https://github.com/billstclair/elm-oauth-middleware/tree/master/server) contains the server code, which you must configure and run at a `<redirectUri>` that you've associated with your client ID(s) and client secret(s). See its README file for configuration instructions.
+# Server details
+
+The [`server` directory](https://github.com/billstclair/elm-oauth-middleware/tree/master/server) contains the server code, which you must configure and run at a `<redirectUri>` that you've associated, via your OAuth authorization service(s), with your client ID(s) and client secret(s). See its README file for configuration instructions.
 
 The `src` directory and this directory's `elm-package.json` implement the client side of the conversation, enabling initiating of the OAuth connection and processing the redirect when it comes back from the server.
 
