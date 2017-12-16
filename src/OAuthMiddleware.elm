@@ -19,6 +19,8 @@ module OAuthMiddleware
         , decodeResponseToken
         , encodeRedirectState
         , encodeResponseToken
+        , responseTokenQuery
+        , responseTokenQueryError
         )
 
 {-| Client side of OAuth Authorization Code Grant Flow.
@@ -32,6 +34,11 @@ module OAuthMiddleware
 # Client-side functions
 
 @docs authorize
+
+
+# Query parameters for return URL from redirect server
+
+@docs responseTokenQuery, responseTokenQueryError
 
 
 # Encode/Decode state for passing over the wire.
@@ -118,6 +125,20 @@ encodeRedirectState : RedirectState -> String
 encodeRedirectState redirectState =
     JE.encode 0 <|
         redirectStateEncoder redirectState
+
+
+{-| The URL query parameter for a ResponseToken returned from the redirect server.
+-}
+responseTokenQuery : String
+responseTokenQuery =
+    "response-token"
+
+
+{-| The URL query parameter for a ResponseToken error returned from the redirect server.
+-}
+responseTokenQueryError : String
+responseTokenQueryError =
+    "response-token-error"
 
 
 {-| Decode the `ResponseToken` that is sent back to the `redirectUri`

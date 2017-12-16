@@ -3,9 +3,10 @@ port module Main exposing (main)
 import Debug
 import Dict exposing (Dict)
 import Erl
-import Erl.Query
+import Erl.Query as Q
 import Http
 import Json.Decode as JD
+import Navigation
 import OAuth exposing (Authentication(..))
 import OAuth.AuthorizationCode
 import OAuthMiddleware
@@ -192,13 +193,26 @@ update msg model =
             newRequest request model
 
         ReceiveToken id redirectBackUri state result ->
+            let
+                ( key, value ) =
+                    case result of
+                        Err err ->
+                            ( OAuthMiddleware.responseTokenQueryError
+                            , toString err
+                            )
+
+                        Ok responseToken ->
+                            ( OAuthMiddleware.responseTokenQuery
+                            , OAuthMiddleware.encodeResponseToken
+                                { responseToken | state = state }
+                            )
+
+                query =
+                    Q.add key value []
+                        |> Q.toString
+            in
             model
-                ! [ Server.Http.send <|
-                        Server.Http.textResponse
-                            Server.Http.badRequestStatus
-                            (toString ( redirectBackUri, state, result ))
-                            id
-                  ]
+                ! [ Navigation.load <| redirectBackUri ++ query ]
 
         NoOp ->
             model ! []
@@ -224,10 +238,10 @@ newRequest request model =
             url.query
 
         codes =
-            Erl.Query.getValuesForKey "code" query
+            Q.getValuesForKey "code" query
 
         states =
-            Erl.Query.getValuesForKey "state" query
+            Q.getValuesForKey "state" query
     in
     case ( codes, states ) of
         ( [ code ], [ state ] ) ->
