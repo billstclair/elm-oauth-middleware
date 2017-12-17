@@ -13,8 +13,10 @@
 module OAuthMiddleware
     exposing
         ( Authorization
-        , TokenState
+        , ResponseToken
+        , TokenState(..)
         , authorize
+        , locationToRedirectBackUri
         , receiveTokenAndState
         , use
         )
@@ -26,12 +28,12 @@ Your top-level Elm program must be created with `Navigation.program` or `Navigat
 
 # Types
 
-@docs Authorization, TokenState
+@docs Authorization, ResponseToken, TokenState
 
 
 # Client-side functions
 
-@docs authorize, receiveTokenAndState, use
+@docs locationToRedirectBackUri, authorize, receiveTokenAndState, use
 
 -}
 
@@ -74,9 +76,16 @@ type alias Authorization =
     }
 
 
+{-| Convert a `Navigation.Location` into a string suitable for the `redirectBackUri` in an `Authorization`.
+-}
+locationToRedirectBackUri : Location -> String
+locationToRedirectBackUri location =
+    location.protocol ++ location.host ++ location.pathname
+
+
 {-| Send an authorization request.
 
-This will cause the authorization server to ask the user to login. If successful, it will send the received code and `Authorization.state` to the `Authorization.redirectUri` for generation of a token to send back to the `Authorization.redirectBackUri`. Your code at that Uri will receive an encoded `OAuth.ResponseToken` on the `responseTokenQuery` parameter, or an error string on the `responseTokenQueryError` parameter. Use `decodeResponseToken` to turn the `responseTokenQuery` string into an `OAuth.ResponseToken`, which you can use to do authenticated requests, just as if you had called `OAuth.AuthorizationCode.authenticate` yourself, but hiding the client secret on the redirect server.
+This will cause the authorization server to ask the user to login. If successful, it will send the received code and `Authorization.state` to the `Authorization.redirectUri` for generation of a token to send back to the `Authorization.redirectBackUri`. Your code at that Uri will receive an encoded `ResponseToken` on the `responseTokenQuery` parameter, or an error string on the `responseTokenQueryError` parameter. Use `decodeResponseToken` to turn the `responseTokenQuery` string into an `ResponseToken`, which you can use to do authenticated requests, just as if you had called `OAuth.AuthorizationCode.authenticate` yourself, but hiding the client secret on the redirect server.
 
 The returned `Cmd` will cause the user's browser to navigate away from your app for authentication and token fetching by the `redirectUri`. The redirect server will navigate back with query args that you can process with `receiveTokenAndState`.
 
@@ -102,25 +111,33 @@ authorize { authorizationUri, tokenUri, clientId, redirectUri, redirectBackUri, 
         }
 
 
+{-| An alias for `OAuth.ResponseToken`.
+-}
+type alias ResponseToken =
+    OAuth.ResponseToken
+
+
 {-| The result of parsing a Navigation.Location that may have come from
 a redirect from a callback server, as implemented in the `server` directory
 of this project.
 
-For a `TokenAndState` return, the state you passed is inside the `Oath.ResponseToken`.
+For a `TokenAndState` or `TokenErrorAndState`, the state you passed is the `(Maybe String)`.
 
-For a `TokenErrorAndState` return, the state you passed is the `(Maybe String)`.
+You will rarely need to look inside a `ResponseToken`. Just pass it to `use` to add it to the headers for a request to the protected resource.
 
-For the other two possibilities, your state is not available.
+`TokenDecodeError` means that there was a properly-named query string, but an error occurred while decoding it.
+
+`NoToken` means that there was no query parameter that looked like a token or an error message about getting a token. In other words, this invocation of your webapp was not due to a redirection from the callback server.
 
 -}
 type TokenState
-    = TokenAndState OAuth.ResponseToken
+    = TokenAndState ResponseToken (Maybe String)
     | TokenErrorAndState String (Maybe String)
     | TokenDecodeError String
     | NoToken
 
 
-{-| Parse a returned `OAuth.ResponseToken` from a `Navigation.Location`
+{-| Parse a returned `ResponseToken` from a `Navigation.Location`
 -}
 receiveTokenAndState : Location -> TokenState
 receiveTokenAndState location =
@@ -141,7 +158,7 @@ receiveTokenAndState location =
         ( response :: _, _ ) ->
             case ED.decodeResponseToken response of
                 Ok token ->
-                    TokenAndState token
+                    TokenAndState token token.state
 
                 Err msg ->
                     TokenDecodeError msg
@@ -166,6 +183,6 @@ receiveTokenAndState location =
 A thin wrapper around `OAuth.use`.
 
 -}
-use : OAuth.ResponseToken -> List Http.Header -> List Http.Header
+use : ResponseToken -> List Http.Header -> List Http.Header
 use responseToken headers =
     OAuth.use responseToken.token headers
