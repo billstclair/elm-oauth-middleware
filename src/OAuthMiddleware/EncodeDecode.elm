@@ -13,11 +13,17 @@
 module OAuthMiddleware.EncodeDecode
     exposing
         ( RedirectState
+        , decodeRedirectState
+        , decodeResponseToken
+        , encodeRedirectState
+        , encodeResponseToken
         , nullableStringEncoder
         , redirectStateDecoder
         , redirectStateEncoder
         , responseTokenDecoder
         , responseTokenEncoder
+        , responseTokenQuery
+        , responseTokenQueryError
         )
 
 {-| JSON Encoders and Decoders for the `OAuthMiddleware` module.
@@ -28,7 +34,18 @@ module OAuthMiddleware.EncodeDecode
 @docs RedirectState
 
 
-# Functions
+# Query parameters for return URL from redirect server
+
+@docs responseTokenQuery, responseTokenQueryError
+
+
+# Encode/Decode state for passing over the wire.
+
+@docs encodeRedirectState, decodeRedirectState
+@docs encodeResponseToken, decodeResponseToken
+
+
+# Encoders and Decoders
 
 @docs redirectStateDecoder, redirectStateEncoder
 @docs responseTokenDecoder, responseTokenEncoder
@@ -51,6 +68,52 @@ type alias RedirectState =
     , redirectBackUri : String
     , state : Maybe String
     }
+
+
+{-| Decode the state encoded by `encodeRedirectState`.
+-}
+decodeRedirectState : String -> Result String RedirectState
+decodeRedirectState json =
+    JD.decodeString redirectStateDecoder json
+
+
+{-| Encode the redirectBackUri and user state for the authorization server.
+-}
+encodeRedirectState : RedirectState -> String
+encodeRedirectState redirectState =
+    JE.encode 0 <|
+        redirectStateEncoder redirectState
+
+
+{-| The URL query parameter for a ResponseToken returned from the redirect server.
+-}
+responseTokenQuery : String
+responseTokenQuery =
+    "response-token"
+
+
+{-| The URL query parameter for a ResponseToken error returned from the redirect server.
+-}
+responseTokenQueryError : String
+responseTokenQueryError =
+    "response-token-error"
+
+
+{-| Decode the `ResponseToken` that is sent back to the `redirectUri`
+from the redirect server.
+-}
+decodeResponseToken : String -> Result String OAuth.ResponseToken
+decodeResponseToken json =
+    JD.decodeString responseTokenDecoder json
+
+
+{-| Encode the `ResponseToken` that is received by the redirect server
+from its call to `OAuth.AuthorizationCode.authenticate`.
+-}
+encodeResponseToken : OAuth.ResponseToken -> String
+encodeResponseToken responseToken =
+    JE.encode 0 <|
+        responseTokenEncoder responseToken
 
 
 {-| Decode the state sent to the authenticate server

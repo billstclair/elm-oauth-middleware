@@ -41,7 +41,7 @@ The server runs on port 3000. That number is wired in to `src/index.js`. You may
     
 # Build, populate, updload server image
 
-If you have my [`rsyncit` script](https://github.com/billstclair/wws-scripts/blob/master/bin/rsyncit) in your `PATH`, and you create a `.sshdir` file [as instructed](https://github.com/billstclair/wws-scripts) for the `site` directory, you can build, populate, and upload the server image with one script:
+If you have my [`rsyncit` script](https://github.com/billstclair/wws-scripts/blob/master/bin/rsyncit) in your `PATH`, and you create a `.sshdir` file [as instructed](https://github.com/billstclair/wws-scripts#rsyncit) for the `site` directory, you can build, populate, and upload the server image with one script:
 
     cd .../elm-oauth-middleware/server
     bin/update-site

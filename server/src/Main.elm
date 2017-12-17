@@ -8,7 +8,7 @@ import Http
 import Json.Decode as JD
 import OAuth exposing (Authentication(..))
 import OAuth.AuthorizationCode
-import OAuthMiddleware exposing (RedirectState)
+import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
 import Platform
 import Server.Http
 import Time exposing (Time)
@@ -197,15 +197,15 @@ update msg model =
 
                                     Just s ->
                                         [ ( "state", s ) ]
-                                , [ ( OAuthMiddleware.responseTokenQueryError
+                                , [ ( ED.responseTokenQueryError
                                     , toString err
                                     )
                                   ]
                                 ]
 
                         Ok responseToken ->
-                            [ ( OAuthMiddleware.responseTokenQuery
-                              , OAuthMiddleware.encodeResponseToken
+                            [ ( ED.responseTokenQuery
+                              , ED.encodeResponseToken
                                     { responseToken | state = state }
                               )
                             ]
@@ -232,7 +232,7 @@ update msg model =
 
 {-| The request comes from the authorization server, and is of the form:
 
-...?code=<long code>&state=<from OAuthMiddleware.encodeRedirectState>
+...?code=<long code>&state=<from OAuthMiddleware.EncodeDecode.encodeRedirectState>
 
 We can also get "?error=access_denied&state=<foo>"
 
@@ -310,7 +310,7 @@ authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( M
 authRequest code state url request model =
     let
         cmd =
-            case OAuthMiddleware.decodeRedirectState state of
+            case ED.decodeRedirectState state of
                 Err err ->
                     Server.Http.send <|
                         Server.Http.textResponse
