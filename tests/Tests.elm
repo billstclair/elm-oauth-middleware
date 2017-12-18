@@ -1,11 +1,12 @@
 module Tests exposing (all)
 
+import Dict
 import Expect exposing (Expectation)
 import Json.Decode as JD exposing (Decoder, Value)
 import List
 import Maybe exposing (withDefault)
 import OAuth exposing (ResponseToken, Token(..))
-import OAuthMiddleware
+import OAuthMiddleware exposing (Authorization)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
 import Test exposing (..)
 
@@ -35,6 +36,7 @@ all =
         List.concat
             [ List.map doEncodeTest redirectStateTestData
             , List.map doEncodeTest responseTokenTestData
+            , List.map doEncodeTest authorizationTestData
             ]
 
 
@@ -83,6 +85,11 @@ encodeDecodeResponseToken =
     encodeDecode ED.responseTokenEncoder ED.responseTokenDecoder
 
 
+encodeDecodeAuthorization : Authorization -> Result String Authorization
+encodeDecodeAuthorization =
+    encodeDecode ED.authorizationEncoder ED.authorizationDecoder
+
+
 insertEncodeDecode : (a -> Result String a) -> ( String, a ) -> ( String, a -> Result String a, a )
 insertEncodeDecode encodeDecode ( name, data ) =
     ( name, encodeDecode, data )
@@ -123,3 +130,22 @@ responseTokenTestData =
       )
     ]
         |> List.map (insertEncodeDecode encodeDecodeResponseToken)
+
+
+authorizationTestData : List ( String, Authorization -> Result String Authorization, Authorization )
+authorizationTestData =
+    [ ( "Authorization"
+      , { name = "Gmail"
+        , authorizationUri = "authorizationuri"
+        , tokenUri = "tokenuri"
+        , clientId = "clientid"
+        , redirectUri = "redirecturi"
+        , scopes =
+            Dict.fromList
+                [ ( "name1", "scope1" )
+                , ( "name2", "scope2" )
+                ]
+        }
+      )
+    ]
+        |> List.map (insertEncodeDecode encodeDecodeAuthorization)

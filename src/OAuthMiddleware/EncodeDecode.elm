@@ -12,7 +12,12 @@
 
 module OAuthMiddleware.EncodeDecode
     exposing
-        ( RedirectState
+        ( Authorization
+        , RedirectState
+        , authorizationDecoder
+        , authorizationEncoder
+        , authorizationsDecoder
+        , authorizationsEncoder
         , decodeRedirectState
         , decodeResponseToken
         , encodeRedirectState
@@ -31,7 +36,7 @@ module OAuthMiddleware.EncodeDecode
 
 # Types
 
-@docs RedirectState
+@docs Authorization, RedirectState
 
 
 # Query parameters for return URL from redirect server
@@ -47,12 +52,15 @@ module OAuthMiddleware.EncodeDecode
 
 # Encoders and Decoders
 
+@docs authorizationsDecoder, authorizationsEncoder
+@docs authorizationDecoder, authorizationEncoder
 @docs redirectStateDecoder, redirectStateEncoder
 @docs responseTokenDecoder, responseTokenEncoder
 @docs nullableStringEncoder
 
 -}
 
+import Dict exposing (Dict)
 import Json.Decode as JD exposing (Decoder)
 import Json.Encode as JE exposing (Value)
 import OAuth
@@ -262,3 +270,69 @@ makeToken mtoken tokenType =
 
         _ ->
             Nothing
+
+
+{-| Authorization information to send to the redirect (callback) server.
+
+Usually stored in a JSON file, and read and decoded by `OAuthMiddleware.getAuthorizations` or `OAuthMiddleware.getAuthorization`.
+
+-}
+type alias Authorization =
+    { name : String
+    , authorizationUri : String
+    , tokenUri : String
+    , clientId : String
+    , redirectUri : String
+    , scopes : Dict String String
+    }
+
+
+{-| Decode an `Authorization`.
+
+Usually used via `OAuthMiddleware.getAuthorization`.
+
+-}
+authorizationDecoder : Decoder Authorization
+authorizationDecoder =
+    JD.map6 Authorization
+        (JD.field "name" JD.string)
+        (JD.field "authorizationUri" JD.string)
+        (JD.field "tokenUri" JD.string)
+        (JD.field "clientId" JD.string)
+        (JD.field "redirectUri" JD.string)
+        (JD.field "scopes" <| JD.dict JD.string)
+
+
+{-| Encode an `Authorization`.
+-}
+authorizationEncoder : Authorization -> Value
+authorizationEncoder authorization =
+    JE.object
+        [ ( "name", JE.string authorization.name )
+        , ( "authorizationUri", JE.string authorization.authorizationUri )
+        , ( "tokenUri", JE.string authorization.tokenUri )
+        , ( "clientId", JE.string authorization.clientId )
+        , ( "redirectUri", JE.string authorization.redirectUri )
+        , ( "scopes"
+          , JE.object <|
+                List.map (\( k, v ) -> ( k, JE.string v ))
+                    (Dict.toList authorization.scopes)
+          )
+        ]
+
+
+{-| Decode an `Authorization` list.
+
+Usually used via `OAuthMiddleware.getAuthorizations`.
+
+-}
+authorizationsDecoder : Decoder (List Authorization)
+authorizationsDecoder =
+    JD.list authorizationDecoder
+
+
+{-| Encode an `Authorization` list.
+-}
+authorizationsEncoder : List Authorization -> Value
+authorizationsEncoder authorizations =
+    JE.list <| List.map authorizationEncoder authorizations

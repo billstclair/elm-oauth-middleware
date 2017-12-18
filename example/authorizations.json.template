@@ -1,0 +1,10 @@
+[ { "name": "OAuth Provider Name",
+    "authorizationUri" : "https://example.com/outh/authorize",
+    "tokenUri" : "https://example.com/oauth/access_token",
+    "clientId" : "The client Id assigned to you by the OAuth Provider",
+    "redirectUri" : "The redirect (callback) Uri you provided for that client Id",
+    "scopes" : {"scope name 1": "scope 1",
+                "scope name 2": "scope 2"
+               }
+  }
+]

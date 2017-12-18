@@ -12,6 +12,7 @@
 
 module Main exposing (..)
 
+import Dict exposing (Dict)
 import Html
     exposing
         ( Attribute
@@ -58,13 +59,19 @@ import OAuthMiddleware
     exposing
         ( Authorization
         , ResponseToken
+        , TokenAuthorization
         , TokenState(..)
         , authorize
+        , getAuthorizations
         , locationToRedirectBackUri
         , receiveTokenAndState
         , use
         )
-import OAuthMiddleware.EncodeDecode exposing (responseTokenEncoder)
+import OAuthMiddleware.EncodeDecode
+    exposing
+        ( authorizationsEncoder
+        , responseTokenEncoder
+        )
 
 
 type alias Model =
@@ -73,12 +80,16 @@ type alias Model =
     , msg : Maybe String
     , reply : Maybe Value
     , redirectBackUri : String
-    , provider : Provider
+    , provider : String
+    , authorizations : Dict String Authorization
+    , tokenAuthorization : Maybe TokenAuthorization
+    , api : Maybe Api
     }
 
 
 type Msg
     = ReceiveLocation Location
+    | ReceiveAuthorizations (Result Http.Error (List Authorization))
     | Login
     | GetUser
     | ReceiveUser (Result Http.Error Value)
@@ -89,75 +100,31 @@ userAgentHeader =
     Http.header "User-Agent" "Xossbow"
 
 
-gitHubAuthorization : Authorization
-gitHubAuthorization =
-    { authorizationUri = "https://github.com/login/oauth/authorize"
-    , tokenUri = "https://github.com/login/oauth/access_token"
-    , clientId = "ab3259e23daac66c0952"
-    , redirectUri = "https://xossbow.com/oath/github/"
-    , scope = [ "user" ]
-    , state = Just "Vermont"
-    , redirectBackUri = "" --filled in by init
+type alias Api =
+    { url : String
+    , path : String
     }
 
 
-gmailAuthorization : Authorization
-gmailAuthorization =
-    { authorizationUri = "https://accounts.google.com/o/oauth2/auth"
-    , tokenUri = "https://accounts.google.com/o/oauth2/token"
-    , clientId = "488367092930-4jafco3fjmf4voiv6n3nu4v9s4uv3n5u.apps.googleusercontent.com"
-    , redirectUri = "https://xossbow.com/oath/"
-    , scope = [ "https://www.googleapis.com/auth/gmail.readonly" ]
-    , state = Just "Vermont"
-    , redirectBackUri = "" --filled in by init
-    }
-
-
-gabAuthorization : Authorization
-gabAuthorization =
-    { authorizationUri = "https://api.gab.ai/oauth/authorize"
-    , tokenUri = "https://api.gab.ai/oauth/token"
-    , clientId = "4"
-    , redirectUri = "https://xossbow.com/oath/gab/"
-    , scope = [ "read" ]
-    , state = Just "Vermont"
-    , redirectBackUri = "" --filled in by init
-    }
-
-
-type alias Provider =
-    { authorization : Authorization
-    , apiUrl : String
-    , profilePath : String
-    }
-
-
-gitHubProvider : Provider
-gitHubProvider =
-    { authorization = gitHubAuthorization
-    , apiUrl = "https://api.github.com/"
-    , profilePath = "user"
-    }
-
-
-gmailProvider : Provider
-gmailProvider =
-    { authorization = gmailAuthorization
-    , apiUrl = "https://www.googleapis.com/gmail/v1/users/"
-    , profilePath = "me/profile"
-    }
-
-
-gabProvider : Provider
-gabProvider =
-    { authorization = gabAuthorization
-    , apiUrl = "https://api.gab.ai/v1.0/"
-    , profilePath = "users/Xossbow"
-    }
-
-
-defaultProvider =
-    gmailProvider
+apis : Dict String Api
+apis =
+    Dict.fromList
+        [ ( "Gab"
+          , { url = "https://api.github.com/"
+            , path = "user"
+            }
+          )
+        , ( "Gmail"
+          , { url = "https://www.googleapis.com/gmail/v1/users/"
+            , path = "me/profile"
+            }
+          )
+        , ( "Gab"
+          , { url = "https://api.gab.ai/v1.0/"
+            , path = "users/Xossbow"
+            }
+          )
+        ]
 
 
 main =
@@ -198,43 +165,99 @@ init location =
             Just tok ->
                 Just <| responseTokenEncoder tok
     , redirectBackUri = locationToRedirectBackUri location
-    , provider = defaultProvider
+    , authorizations = Dict.empty
+    , provider = "Gmail"
+    , tokenAuthorization = Nothing
+    , api = Nothing
     }
-        ! []
+        ! [ Http.send ReceiveAuthorizations <|
+                getAuthorizations "authorizations.json"
+          ]
 
 
 getUser : Model -> ( Model, Cmd Msg )
 getUser model =
     case model.token of
         Nothing ->
-            { model | msg = Just "You must login before getting user information." }
+            { model
+                | msg = Just "You must login before getting user information."
+            }
                 ! []
 
         Just token ->
-            let
-                provider =
-                    model.provider
+            case model.api of
+                Nothing ->
+                    { model | msg = Just "No know API." }
+                        ! []
 
-                url =
-                    provider.apiUrl ++ provider.profilePath
+                Just api ->
+                    let
+                        url =
+                            api.url ++ api.path
 
-                req =
-                    Http.request
-                        { method = "GET"
-                        , headers = use token [ userAgentHeader ]
-                        , url = url
-                        , body = Http.emptyBody
-                        , expect = Http.expectJson JD.value
-                        , timeout = Nothing
-                        , withCredentials = False
-                        }
-            in
-            model ! [ Http.send ReceiveUser req ]
+                        req =
+                            Http.request
+                                { method = "GET"
+                                , headers = use token [ userAgentHeader ]
+                                , url = url
+                                , body = Http.emptyBody
+                                , expect = Http.expectJson JD.value
+                                , timeout = Nothing
+                                , withCredentials = False
+                                }
+                    in
+                    model ! [ Http.send ReceiveUser req ]
+
+
+lookupProvider : Model -> Model
+lookupProvider model =
+    let
+        authorization =
+            case Dict.get model.provider model.authorizations of
+                Nothing ->
+                    case List.head <| Dict.toList model.authorizations of
+                        Nothing ->
+                            Nothing
+
+                        Just ( _, auth ) ->
+                            Just auth
+
+                Just auth ->
+                    Just auth
+    in
+    case authorization of
+        Nothing ->
+            model
+
+        Just auth ->
+            case List.head <| Dict.toList auth.scopes of
+                Nothing ->
+                    model
+
+                Just ( _, scope ) ->
+                    let
+                        provider =
+                            auth.name
+
+                        api =
+                            Dict.get provider apis
+                    in
+                    { model
+                        | provider = provider
+                        , tokenAuthorization =
+                            Just
+                                { authorization = auth
+                                , scope = [ scope ]
+                                , state = Just "Vermont"
+                                , redirectBackUri = model.redirectBackUri
+                                }
+                        , api = api
+                    }
 
 
 {-| Getting from GitHub for login:
 
-body = "access_token=1450d906051a45db3b2a645287f6ed379af4dc52&scope=user&token_type=bearer"
+body = "access_token=elided&scope=user&token_type=bearer"
 
 Two things, from <https://developer.github.com/apps/building-oauth-apps/authorization-options-for-oauth-apps/>
 
@@ -248,18 +271,40 @@ update msg model =
         ReceiveLocation _ ->
             model ! []
 
+        ReceiveAuthorizations result ->
+            case result of
+                Err err ->
+                    { model | msg = Just <| toString err }
+                        ! []
+
+                Ok authorizations ->
+                    lookupProvider
+                        { model
+                            | authorizations =
+                                Dict.fromList <|
+                                    List.map (\a -> ( a.name, a )) authorizations
+                            , msg = Nothing
+                            , reply =
+                                case model.token of
+                                    Nothing ->
+                                        Just <|
+                                            authorizationsEncoder
+                                                authorizations
+
+                                    tok ->
+                                        model.reply
+                        }
+                        ! []
+
         Login ->
-            let
-                provider =
-                    model.provider
+            case model.tokenAuthorization of
+                Nothing ->
+                    { model | msg = Just "No provider selected." }
+                        ! []
 
-                auth =
-                    provider.authorization
-
-                authorization =
-                    { auth | redirectBackUri = model.redirectBackUri }
-            in
-            model ! [ authorize authorization ]
+                Just authorization ->
+                    model
+                        ! [ authorize authorization ]
 
         GetUser ->
             getUser model

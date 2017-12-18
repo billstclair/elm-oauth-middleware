@@ -14,8 +14,11 @@ module OAuthMiddleware
     exposing
         ( Authorization
         , ResponseToken
+        , TokenAuthorization
         , TokenState(..)
         , authorize
+        , getAuthorization
+        , getAuthorizations
         , locationToRedirectBackUri
         , receiveTokenAndState
         , use
@@ -28,11 +31,12 @@ Your top-level Elm program must be created with `Navigation.program` or `Navigat
 
 # Types
 
-@docs Authorization, ResponseToken, TokenState
+@docs Authorization, TokenAuthorization, ResponseToken, TokenState
 
 
 # Client-side functions
 
+@docs getAuthorization, getAuthorizations
 @docs locationToRedirectBackUri, authorize, receiveTokenAndState, use
 
 -}
@@ -65,18 +69,50 @@ import Task exposing (Task)
 `redirectBackUri` is a Uri to redirect to AFTER the `redirectUri` exchanges the received code for an access token. It will resume your Elm application, this time with an access token in its hand.
 
 -}
-type alias Authorization =
-    { authorizationUri : String
-    , tokenUri : String
-    , clientId : String
-    , redirectUri : String
+type alias TokenAuthorization =
+    { authorization : Authorization
     , scope : List String
     , state : Maybe String
     , redirectBackUri : String
     }
 
 
-{-| Convert a `Navigation.Location` into a string suitable for the `redirectBackUri` in an `Authorization`.
+{-| You'll usually get this from a JSON file, often via `getAuthorizations`.
+-}
+type alias Authorization =
+    ED.Authorization
+
+
+{-| Get a JSON file encoding an `Authorization`.
+
+The JSON format is as follows. You'll change it with information from your OAuth provider, and for your redirect server, and store it in a convenient place on the same server serving your compiled Elm code.
+
+The `scopes` field is an object, mapping your internal name each scope to the actual OAuth provider name. For most OAuth providers, the two will be identical, but Google, for example, uses long URL-looking strings for scope names, so it's convenient to have a shorter name your application can use. This field isn't used by any of the `OAuthMiddleware` code, except the example, so you can safely set it to `{}`, if you prefer to just encode the scope strings as constants in your Elm code.
+
+Your client secret is stored with the redirect server, and never leaves that server machine.
+
+    { "name": "Gmail",
+      "authorizationUri": "https://accounts.google.com/o/oauth2/auth",
+      "tokenUri": "https://accounts.google.com/o/oauth2/token",
+      "clientId": "<Your OAuth clientid>
+      "redirectUri": "<Your redirect server Uri>"
+      "scopes": {"<Your scope name>": "<OAuth provider's scope name>"}
+    }
+
+-}
+getAuthorization : String -> Http.Request Authorization
+getAuthorization url =
+    Http.get url ED.authorizationDecoder
+
+
+{-| Get a JSON file encoding an `Authorization` list.
+-}
+getAuthorizations : String -> Http.Request (List Authorization)
+getAuthorizations url =
+    Http.get url ED.authorizationsDecoder
+
+
+{-| Convert a `Navigation.Location` into a string suitable for the `redirectBackUri` in a `TokenAuthorization`.
 -}
 locationToRedirectBackUri : Location -> String
 locationToRedirectBackUri location =
@@ -85,13 +121,17 @@ locationToRedirectBackUri location =
 
 {-| Send an authorization request.
 
-This will cause the authorization server to ask the user to login. If successful, it will send the received code and `Authorization.state` to the `Authorization.redirectUri` for generation of a token to send back to the `Authorization.redirectBackUri`. Your code at that Uri will receive an encoded `ResponseToken` on the `responseTokenQuery` parameter, or an error string on the `responseTokenQueryError` parameter. Use `decodeResponseToken` to turn the `responseTokenQuery` string into an `ResponseToken`, which you can use to do authenticated requests, just as if you had called `OAuth.AuthorizationCode.authenticate` yourself, but hiding the client secret on the redirect server.
+This will cause the authorization server to ask the user to login. If successful, it will send the received code and `TokenAuthorization.state` to the `TokenAuthorization.authorization.redirectUri` for generation of a token to send back to the `TokenAuthorization.redirectBackUri`. Your code at that Uri will receive an encoded `ResponseToken` on the `responseTokenQuery` parameter, or an error string on the `responseTokenQueryError` parameter. Use `decodeResponseToken` to turn the `responseTokenQuery` string into an `ResponseToken`, which you can use to do authenticated requests, just as if you had called `OAuth.TokenAuthorizationCode.authenticate` yourself, but hiding the client secret on the redirect server.
 
 The returned `Cmd` will cause the user's browser to navigate away from your app for authentication and token fetching by the `redirectUri`. The redirect server will navigate back with query args that you can process with `receiveTokenAndState`.
 
 -}
-authorize : Authorization -> Cmd msg
-authorize { authorizationUri, tokenUri, clientId, redirectUri, redirectBackUri, scope, state } =
+authorize : TokenAuthorization -> Cmd msg
+authorize { authorization, redirectBackUri, scope, state } =
+    let
+        { authorizationUri, tokenUri, clientId, redirectUri } =
+            authorization
+    in
     OAuth.AuthorizationCode.authorize
         { clientId = clientId
         , redirectUri = redirectUri
