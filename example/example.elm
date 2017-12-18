@@ -10,7 +10,7 @@
 ----------------------------------------------------------------------
 
 
-module GitHubExample exposing (..)
+module Main exposing (..)
 
 import Html
     exposing
@@ -24,6 +24,7 @@ import Html
         , input
         , option
         , p
+        , pre
         , select
         , span
         , table
@@ -63,14 +64,16 @@ import OAuthMiddleware
         , receiveTokenAndState
         , use
         )
+import OAuthMiddleware.EncodeDecode exposing (responseTokenEncoder)
 
 
 type alias Model =
     { token : Maybe ResponseToken
     , state : Maybe String
     , msg : Maybe String
-    , user : Maybe Value
-    , authorization : Authorization
+    , reply : Maybe Value
+    , redirectBackUri : String
+    , provider : Provider
     }
 
 
@@ -81,26 +84,80 @@ type Msg
     | ReceiveUser (Result Http.Error Value)
 
 
-scope : List String
-scope =
-    [ "user" ]
-
-
 userAgentHeader : Http.Header
 userAgentHeader =
     Http.header "User-Agent" "Xossbow"
 
 
-authorization : Authorization
-authorization =
+gitHubAuthorization : Authorization
+gitHubAuthorization =
     { authorizationUri = "https://github.com/login/oauth/authorize"
     , tokenUri = "https://github.com/login/oauth/access_token"
     , clientId = "ab3259e23daac66c0952"
     , redirectUri = "https://xossbow.com/oath/github/"
-    , scope = scope
+    , scope = [ "user" ]
     , state = Just "Vermont"
     , redirectBackUri = "" --filled in by init
     }
+
+
+gmailAuthorization : Authorization
+gmailAuthorization =
+    { authorizationUri = "https://accounts.google.com/o/oauth2/auth"
+    , tokenUri = "https://accounts.google.com/o/oauth2/token"
+    , clientId = "488367092930-4jafco3fjmf4voiv6n3nu4v9s4uv3n5u.apps.googleusercontent.com"
+    , redirectUri = "https://xossbow.com/oath/"
+    , scope = [ "https://www.googleapis.com/auth/gmail.readonly" ]
+    , state = Just "Vermont"
+    , redirectBackUri = "" --filled in by init
+    }
+
+
+gabAuthorization : Authorization
+gabAuthorization =
+    { authorizationUri = "https://api.gab.ai/oauth/authorize"
+    , tokenUri = "https://api.gab.ai/oauth/token"
+    , clientId = "4"
+    , redirectUri = "https://xossbow.com/oath/gab/"
+    , scope = [ "read" ]
+    , state = Just "Vermont"
+    , redirectBackUri = "" --filled in by init
+    }
+
+
+type alias Provider =
+    { authorization : Authorization
+    , apiUrl : String
+    , profilePath : String
+    }
+
+
+gitHubProvider : Provider
+gitHubProvider =
+    { authorization = gitHubAuthorization
+    , apiUrl = "https://api.github.com/"
+    , profilePath = "user"
+    }
+
+
+gmailProvider : Provider
+gmailProvider =
+    { authorization = gmailAuthorization
+    , apiUrl = "https://www.googleapis.com/gmail/v1/users/"
+    , profilePath = "me/profile"
+    }
+
+
+gabProvider : Provider
+gabProvider =
+    { authorization = gabAuthorization
+    , apiUrl = "https://api.gab.ai/v1.0/"
+    , profilePath = "users/Xossbow"
+    }
+
+
+defaultProvider =
+    gmailProvider
 
 
 main =
@@ -133,18 +190,17 @@ init location =
     { token = token
     , state = state
     , msg = msg
-    , user = Nothing
-    , authorization =
-        { authorization
-            | redirectBackUri = locationToRedirectBackUri location
-        }
+    , reply =
+        case token of
+            Nothing ->
+                Nothing
+
+            Just tok ->
+                Just <| responseTokenEncoder tok
+    , redirectBackUri = locationToRedirectBackUri location
+    , provider = defaultProvider
     }
         ! []
-
-
-gitHubApiUrl : String
-gitHubApiUrl =
-    "https://api.github.com"
 
 
 getUser : Model -> ( Model, Cmd Msg )
@@ -156,11 +212,17 @@ getUser model =
 
         Just token ->
             let
+                provider =
+                    model.provider
+
+                url =
+                    provider.apiUrl ++ provider.profilePath
+
                 req =
                     Http.request
                         { method = "GET"
                         , headers = use token [ userAgentHeader ]
-                        , url = gitHubApiUrl ++ "/user"
+                        , url = url
                         , body = Http.emptyBody
                         , expect = Http.expectJson JD.value
                         , timeout = Nothing
@@ -170,6 +232,16 @@ getUser model =
             model ! [ Http.send ReceiveUser req ]
 
 
+{-| Getting from GitHub for login:
+
+body = "access_token=1450d906051a45db3b2a645287f6ed379af4dc52&scope=user&token_type=bearer"
+
+Two things, from <https://developer.github.com/apps/building-oauth-apps/authorization-options-for-oauth-apps/>
+
+1.  Need to give it an "Accept: application/json" header.
+2.  It returns "s1,s2,s3" intead of ["s1","s2","s3"] for scope
+
+-}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -177,7 +249,17 @@ update msg model =
             model ! []
 
         Login ->
-            model ! [ authorize model.authorization ]
+            let
+                provider =
+                    model.provider
+
+                auth =
+                    provider.authorization
+
+                authorization =
+                    { auth | redirectBackUri = model.redirectBackUri }
+            in
+            model ! [ authorize authorization ]
 
         GetUser ->
             getUser model
@@ -186,14 +268,14 @@ update msg model =
             case result of
                 Err err ->
                     { model
-                        | user = Nothing
+                        | reply = Nothing
                         , msg = Just <| toString err
                     }
                         ! []
 
-                Ok user ->
+                Ok reply ->
                     { model
-                        | user = Just user
+                        | reply = Just reply
                         , msg = Nothing
                     }
                         ! []
@@ -212,13 +294,13 @@ view model =
             , button [ onClick GetUser ]
                 [ text "Get User" ]
             ]
-        , p []
-            [ case ( model.msg, model.user ) of
+        , pre []
+            [ case ( model.msg, model.reply ) of
                 ( Just msg, _ ) ->
                     text <| toString msg
 
-                ( _, Just user ) ->
-                    text <| toString user
+                ( _, Just reply ) ->
+                    text <| JE.encode 2 reply
 
                 _ ->
                     text "Nothing to report"
