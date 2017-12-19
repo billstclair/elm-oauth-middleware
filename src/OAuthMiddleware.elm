@@ -41,7 +41,7 @@ Your top-level Elm program must be created with `Navigation.program` or `Navigat
 
 -}
 
-import Erl.Query as EQ
+import Base64
 import Http
 import Json.Decode as JD exposing (Decoder)
 import Json.Encode as JE exposing (Value)
@@ -182,40 +182,25 @@ type TokenState
 receiveTokenAndState : Location -> TokenState
 receiveTokenAndState location =
     let
-        query =
-            EQ.parse location.search
-
-        states =
-            EQ.getValuesForKey "state" query
-
-        responses =
-            EQ.getValuesForKey ED.responseTokenQuery query
-
-        errors =
-            EQ.getValuesForKey ED.responseTokenQueryError query
+        base64 =
+            String.dropLeft 1 location.hash
     in
-    case ( responses, errors ) of
-        ( response :: _, _ ) ->
-            case ED.decodeResponseToken response of
+    case Base64.decode base64 of
+        Err _ ->
+            NoToken
+
+        Ok reply ->
+            case ED.decodeResponseToken reply of
                 Ok token ->
                     TokenAndState token token.state
 
-                Err msg ->
-                    TokenDecodeError msg
+                Err _ ->
+                    case ED.decodeResponseTokenError reply of
+                        Ok error ->
+                            TokenErrorAndState error.err error.state
 
-        ( _, error :: _ ) ->
-            TokenErrorAndState
-                error
-            <|
-                case states of
-                    s :: _ ->
-                        Just s
-
-                    _ ->
-                        Nothing
-
-        _ ->
-            NoToken
+                        Err _ ->
+                            NoToken
 
 
 {-| Use a token to add authenticatication to a request header.

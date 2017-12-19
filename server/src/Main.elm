@@ -1,11 +1,13 @@
 port module Main exposing (main)
 
+import Base64
 import Debug
 import Dict exposing (Dict)
 import Erl
 import Erl.Query as Q
 import Http
 import Json.Decode as JD
+import Json.Encode as JE
 import OAuth exposing (Authentication(..))
 import OAuth.AuthorizationCode
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
@@ -187,35 +189,29 @@ update msg model =
 
         ReceiveToken id redirectBackUri state result ->
             let
-                queries =
+                string =
                     case result of
                         Err err ->
-                            List.concat
-                                [ case state of
-                                    Nothing ->
-                                        []
-
-                                    Just s ->
-                                        [ ( "state", s ) ]
-                                , [ ( ED.responseTokenQueryError
-                                    , toString err
-                                    )
-                                  ]
-                                ]
+                            ED.encodeResponseTokenError
+                                { err = toString err
+                                , state = state
+                                }
 
                         Ok responseToken ->
-                            [ ( ED.responseTokenQuery
-                              , ED.encodeResponseToken
-                                    { responseToken | state = state }
-                              )
-                            ]
+                            ED.encodeResponseToken
+                                { responseToken | state = state }
 
-                query =
-                    List.foldl (\( k, v ) dict -> Q.add k v dict) [] queries
-                        |> Q.toString
+                base64 =
+                    case Base64.encode string of
+                        Ok b ->
+                            b
+
+                        Err _ ->
+                            -- Can't happen
+                            ""
 
                 location =
-                    redirectBackUri ++ query
+                    redirectBackUri ++ "#" ++ base64
 
                 response =
                     Server.Http.emptyResponse

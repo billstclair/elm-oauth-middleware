@@ -14,21 +14,24 @@ module OAuthMiddleware.EncodeDecode
     exposing
         ( Authorization
         , RedirectState
+        , ResponseTokenError
         , authorizationDecoder
         , authorizationEncoder
         , authorizationsDecoder
         , authorizationsEncoder
         , decodeRedirectState
         , decodeResponseToken
+        , decodeResponseTokenError
         , encodeRedirectState
         , encodeResponseToken
+        , encodeResponseTokenError
         , nullableStringEncoder
         , redirectStateDecoder
         , redirectStateEncoder
         , responseTokenDecoder
         , responseTokenEncoder
-        , responseTokenQuery
-        , responseTokenQueryError
+        , responseTokenErrorDecoder
+        , responseTokenErrorEncoder
         )
 
 {-| JSON Encoders and Decoders for the `OAuthMiddleware` module.
@@ -36,18 +39,14 @@ module OAuthMiddleware.EncodeDecode
 
 # Types
 
-@docs Authorization, RedirectState
-
-
-# Query parameters for return URL from redirect server
-
-@docs responseTokenQuery, responseTokenQueryError
+@docs Authorization, RedirectState, ResponseTokenError
 
 
 # Encode/Decode state for passing over the wire.
 
 @docs encodeRedirectState, decodeRedirectState
 @docs encodeResponseToken, decodeResponseToken
+@docs encodeResponseTokenError, decodeResponseTokenError
 
 
 # Encoders and Decoders
@@ -56,6 +55,7 @@ module OAuthMiddleware.EncodeDecode
 @docs authorizationDecoder, authorizationEncoder
 @docs redirectStateDecoder, redirectStateEncoder
 @docs responseTokenDecoder, responseTokenEncoder
+@docs responseTokenErrorDecoder, responseTokenErrorEncoder
 @docs nullableStringEncoder
 
 -}
@@ -93,20 +93,6 @@ encodeRedirectState redirectState =
         redirectStateEncoder redirectState
 
 
-{-| The URL query parameter for a ResponseToken returned from the redirect server.
--}
-responseTokenQuery : String
-responseTokenQuery =
-    "response-token"
-
-
-{-| The URL query parameter for a ResponseToken error returned from the redirect server.
--}
-responseTokenQueryError : String
-responseTokenQueryError =
-    "response-token-error"
-
-
 {-| Decode the `ResponseToken` that is sent back to the `redirectUri`
 from the redirect server.
 -}
@@ -122,6 +108,32 @@ encodeResponseToken : OAuth.ResponseToken -> String
 encodeResponseToken responseToken =
     JE.encode 0 <|
         responseTokenEncoder responseToken
+
+
+{-| If an error occurs getting a token from the token server,
+it is encoded in a `ResponseTokenError`.
+-}
+type alias ResponseTokenError =
+    { err : String
+    , state : Maybe String
+    }
+
+
+{-| Decode the `ResponseTokenError` that may be sent back to the
+`redirectUri` from the redirect server.
+-}
+decodeResponseTokenError : String -> Result String ResponseTokenError
+decodeResponseTokenError json =
+    JD.decodeString responseTokenErrorDecoder json
+
+
+{-| Encode the `ResponseTokenError` that may be sent back to the
+`redirectUri` from the redirect server.
+-}
+encodeResponseTokenError : ResponseTokenError -> String
+encodeResponseTokenError responseTokenError =
+    JE.encode 0 <|
+        responseTokenErrorEncoder responseTokenError
 
 
 {-| Decode the state sent to the authenticate server
@@ -176,6 +188,25 @@ tokenEncoderFields field token =
       )
     , ( "token_type", JE.string "bearer" )
     ]
+
+
+{-| Turn a `ResponseTokenError` into a `Value`.
+-}
+responseTokenErrorEncoder : ResponseTokenError -> Value
+responseTokenErrorEncoder error =
+    JE.object
+        [ ( "err", JE.string error.err )
+        , ( "state", nullableStringEncoder error.state )
+        ]
+
+
+{-| Decode a `ResponseTokenError`.
+-}
+responseTokenErrorDecoder : Decoder ResponseTokenError
+responseTokenErrorDecoder =
+    JD.map2 ResponseTokenError
+        (JD.field "err" JD.string)
+        (JD.field "state" <| JD.nullable JD.string)
 
 
 {-| Encode the "response-token" query arg for the redirectBackUri

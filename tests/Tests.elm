@@ -7,7 +7,7 @@ import List
 import Maybe exposing (withDefault)
 import OAuth exposing (ResponseToken, Token(..))
 import OAuthMiddleware exposing (Authorization)
-import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
+import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState, ResponseTokenError)
 import Test exposing (..)
 
 
@@ -36,6 +36,7 @@ all =
         List.concat
             [ List.map doEncodeTest redirectStateTestData
             , List.map doEncodeTest responseTokenTestData
+            , List.map doEncodeTest responseTokenErrorTestData
             , List.map doEncodeTest authorizationTestData
             ]
 
@@ -85,6 +86,11 @@ encodeDecodeResponseToken =
     encodeDecode ED.responseTokenEncoder ED.responseTokenDecoder
 
 
+encodeDecodeResponseTokenError : ResponseTokenError -> Result String ResponseTokenError
+encodeDecodeResponseTokenError =
+    encodeDecode ED.responseTokenErrorEncoder ED.responseTokenErrorDecoder
+
+
 encodeDecodeAuthorization : Authorization -> Result String Authorization
 encodeDecodeAuthorization =
     encodeDecode ED.authorizationEncoder ED.authorizationDecoder
@@ -130,6 +136,22 @@ responseTokenTestData =
       )
     ]
         |> List.map (insertEncodeDecode encodeDecodeResponseToken)
+
+
+responseTokenErrorTestData : List ( String, ResponseTokenError -> Result String ResponseTokenError, ResponseTokenError )
+responseTokenErrorTestData =
+    [ ( "ResponseTokenError 1"
+      , { err = "foo"
+        , state = Just "Vermont"
+        }
+      )
+    , ( "ResponseTokenError 2"
+      , { err = "bar"
+        , state = Nothing
+        }
+      )
+    ]
+        |> List.map (insertEncodeDecode encodeDecodeResponseTokenError)
 
 
 authorizationTestData : List ( String, Authorization -> Result String Authorization, Authorization )

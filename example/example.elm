@@ -179,6 +179,7 @@ init location =
     }
         ! [ Http.send ReceiveAuthorizations <|
                 getAuthorizations "authorizations.json"
+          , Navigation.modifyUrl "#"
           ]
 
 
