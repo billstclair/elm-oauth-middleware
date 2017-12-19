@@ -303,34 +303,43 @@ tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code mo
 
 
 authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
-authRequest code state url request model =
+authRequest code b64State url request model =
     let
         cmd =
-            case ED.decodeRedirectState state of
-                Err err ->
+            case Base64.decode b64State of
+                Err _ ->
                     Server.Http.send <|
                         Server.Http.textResponse
                             Server.Http.badRequestStatus
-                            ("Malformed state: " ++ state)
+                            ("State not base64 encoded: " ++ b64State)
                             request.id
 
-                Ok redirectState ->
-                    case tokenRequest redirectState code model of
-                        Err msg ->
+                Ok state ->
+                    case ED.decodeRedirectState state of
+                        Err err ->
                             Server.Http.send <|
                                 Server.Http.textResponse
                                     Server.Http.badRequestStatus
-                                    msg
+                                    ("Malformed state: " ++ state)
                                     request.id
 
-                        Ok tokenRequest ->
-                            Http.send
-                                (ReceiveToken
-                                    request.id
-                                    redirectState.redirectBackUri
-                                    redirectState.state
-                                )
-                                tokenRequest
+                        Ok redirectState ->
+                            case tokenRequest redirectState code model of
+                                Err msg ->
+                                    Server.Http.send <|
+                                        Server.Http.textResponse
+                                            Server.Http.badRequestStatus
+                                            msg
+                                            request.id
+
+                                Ok tokenRequest ->
+                                    Http.send
+                                        (ReceiveToken
+                                            request.id
+                                            redirectState.redirectBackUri
+                                            redirectState.state
+                                        )
+                                        tokenRequest
     in
     model ! [ cmd ]
 

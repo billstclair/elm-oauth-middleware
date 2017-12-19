@@ -131,22 +131,32 @@ authorize { authorization, redirectBackUri, scope, state } =
     let
         { authorizationUri, tokenUri, clientId, redirectUri } =
             authorization
+
+        wireState =
+            ED.encodeRedirectState
+                { clientId = clientId
+                , tokenUri = tokenUri
+                , redirectUri = redirectUri
+                , scope = scope
+                , redirectBackUri = redirectBackUri
+                , state = state
+                }
+
+        base64 =
+            case Base64.encode wireState of
+                Ok b64 ->
+                    b64
+
+                Err _ ->
+                    -- Can't happen
+                    ""
     in
     OAuth.AuthorizationCode.authorize
         { clientId = clientId
         , redirectUri = redirectUri
         , responseType = OAuth.Code
         , scope = scope
-        , state =
-            Just <|
-                ED.encodeRedirectState
-                    { clientId = clientId
-                    , tokenUri = tokenUri
-                    , redirectUri = redirectUri
-                    , scope = scope
-                    , redirectBackUri = redirectBackUri
-                    , state = state
-                    }
+        , state = Just base64
         , url = authorizationUri
         }
 
