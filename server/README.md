@@ -30,6 +30,14 @@ This required Elm. You may want to do it on your local server, and then upload `
 
 The server runs on port 3000. That number is wired in to `src/index.js`. You may not want to use that port for the outside world, so you may want to configure Apache or Nginx to reverse proxy port 80 for that port on some URL.
 
+For example, here's the line in the Apache site file for my server:
+
+    <VirtualHost *:443>
+        ServerName example.com
+        ...
+        ProxyPass "/oaath/" "http://localhost:3000/"
+    </VirtualHost>
+
 # Create server image
 
     cd .../elm-oauth-middleware/server

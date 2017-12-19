@@ -23,4 +23,28 @@ The `src` directory and this directory's `elm-package.json` implement the client
 
 The server code is an adpatation of Asger Nelson's [`elm-web-server`](https://www.npmjs.com/package/elm-web-server) package. In particular, it was based off of his [hello-world](https://github.com/opvasger/elm-web-server/tree/master/examples/hello-world) example, with the WebSocket code removed.
 
-It implements a web server, which runs in [Node.js](https://nodejs.org/en/), and behaves as a redirect server for the grant flow. It can be configured to operate as redirect server for a number of different applications served from a number of different hosts, including fake hosts, established through /etc/hosts on your development machine. The latter enables local development of client software, while using the server to do authorization during testing.
+It implements a web server, which runs in [Node.js](https://nodejs.org/en/), and behaves as a redirect server for the grant flow. It can be configured to operate as redirect server for a number of different applications served from a number of different hosts.
+
+# Development
+
+During development, it's nice to be able to use your local machine for the client code, but still let the server get access tokens. You can do this by inventing a non-existent domain (anything you never use on the real web), and adding it to `/etc/hosts`
+
+    127.0.0.1 oauth-client-dev.com
+    
+Then you include `oauth-client-dev.com` in the `redirectBackHosts` in the servers `config.json` file.
+
+You must start `elm-reactor` with your fake host:
+
+    elm reactor -a "oauth-client-dev.com"
+    
+And aim your browser at it:
+
+    http://oauth-client-dev.com:8000
+
+# Warning
+
+Unfortunately, that nifty development fake domain can be used by a hacker to mint tokens using your server. He'll have to take the `authorizationUri`, `tokenUri`, `clientId`, and `redirectUri` from your code or your loading of `authorizations.json`, but that isn't rocket science with modern web browser developer tools, so he can do it.
+
+He'll still need to have login credentials for the service your client ID and secret unlocks, so any spamming he does will have that account's initials on it. But it will also have your OAuth app's initials on it, so could cause the OAuth provider to censure your account.
+
+I find this risk to be acceptable. You'll need to decide that you do before using this package.
