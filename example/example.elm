@@ -90,6 +90,7 @@ type alias Model =
 type Msg
     = ReceiveLocation Location
     | ReceiveAuthorizations (Result Http.Error (List Authorization))
+    | ChangeProvider String
     | Login
     | GetUser
     | ReceiveUser (Result Http.Error Value)
@@ -109,7 +110,7 @@ type alias Api =
 apis : Dict String Api
 apis =
     Dict.fromList
-        [ ( "Gab"
+        [ ( "GitHub"
           , { url = "https://api.github.com/"
             , path = "user"
             }
@@ -121,7 +122,7 @@ apis =
           )
         , ( "Gab"
           , { url = "https://api.gab.ai/v1.0/"
-            , path = "users/Xossbow"
+            , path = "me" -- "users/{username}"
             }
           )
         ]
@@ -166,7 +167,13 @@ init location =
                 Just <| responseTokenEncoder tok
     , redirectBackUri = locationToRedirectBackUri location
     , authorizations = Dict.empty
-    , provider = "Gmail"
+    , provider =
+        case state of
+            Just p ->
+                p
+
+            Nothing ->
+                "Gmail"
     , tokenAuthorization = Nothing
     , api = Nothing
     }
@@ -248,7 +255,7 @@ lookupProvider model =
                             Just
                                 { authorization = auth
                                 , scope = [ scope ]
-                                , state = Just "Vermont"
+                                , state = Just model.provider
                                 , redirectBackUri = model.redirectBackUri
                                 }
                         , api = api
@@ -283,18 +290,22 @@ update msg model =
                             | authorizations =
                                 Dict.fromList <|
                                     List.map (\a -> ( a.name, a )) authorizations
-                            , msg = Nothing
                             , reply =
-                                case model.token of
-                                    Nothing ->
+                                case ( model.token, model.msg ) of
+                                    ( Nothing, Nothing ) ->
                                         Just <|
                                             authorizationsEncoder
                                                 authorizations
 
-                                    tok ->
+                                    _ ->
                                         model.reply
                         }
                         ! []
+
+        ChangeProvider provider ->
+            lookupProvider
+                { model | provider = provider }
+                ! []
 
         Login ->
             case model.tokenAuthorization of
@@ -326,12 +337,35 @@ update msg model =
                         ! []
 
 
+providerOption : String -> String -> Html Msg
+providerOption currentProvider provider =
+    option
+        [ value provider
+        , selected <| provider == currentProvider
+        ]
+        [ text provider ]
+
+
+providerSelect : Model -> Html Msg
+providerSelect model =
+    select [ onInput ChangeProvider ]
+        (Dict.toList model.authorizations
+            |> List.map Tuple.second
+            |> List.map .name
+            |> List.map (providerOption model.provider)
+        )
+
+
 view : Model -> Html Msg
 view model =
     div
         [ style [ ( "margin-left", "3em" ) ]
         ]
         [ h2 [] [ text "OAuthMiddleware Example" ]
+        , p []
+            [ text "Provider: "
+            , providerSelect model
+            ]
         , p []
             [ button [ onClick Login ]
                 [ text "Login" ]
