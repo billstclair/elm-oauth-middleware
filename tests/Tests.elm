@@ -8,6 +8,11 @@ import Maybe exposing (withDefault)
 import OAuth exposing (ResponseToken, Token(..))
 import OAuthMiddleware exposing (Authorization)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState, ResponseTokenError)
+import OAuthMiddleware.ServerConfiguration as SC
+    exposing
+        ( RedirectBackHost
+        , ServerConfiguration
+        )
 import Test exposing (..)
 
 
@@ -38,6 +43,8 @@ all =
             , List.map doEncodeTest responseTokenTestData
             , List.map doEncodeTest responseTokenErrorTestData
             , List.map doEncodeTest authorizationTestData
+            , List.map doEncodeTest configurationTestData
+            , List.map doSbWasTest redirectBackHostTestData
             ]
 
 
@@ -59,6 +66,14 @@ expectResult sb was =
 
                 Ok sbv ->
                     Expect.equal sbv wasv
+
+
+doSbWasTest : ( String, Result err a, Result err a ) -> Test
+doSbWasTest ( name, was, sb ) =
+    test name
+        (\_ ->
+            expectResult sb was
+        )
 
 
 doEncodeTest : ( String, a -> Result String a, a ) -> Test
@@ -94,6 +109,11 @@ encodeDecodeResponseTokenError =
 encodeDecodeAuthorization : Authorization -> Result String Authorization
 encodeDecodeAuthorization =
     encodeDecode ED.authorizationEncoder ED.authorizationDecoder
+
+
+encodeDecodeConfigurations : List ServerConfiguration -> Result String (List ServerConfiguration)
+encodeDecodeConfigurations =
+    encodeDecode SC.serverConfigurationsEncoder SC.serverConfigurationsDecoder
 
 
 insertEncodeDecode : (a -> Result String a) -> ( String, a ) -> ( String, a -> Result String a, a )
@@ -171,3 +191,50 @@ authorizationTestData =
       )
     ]
         |> List.map (insertEncodeDecode encodeDecodeAuthorization)
+
+
+configurationTestData : List ( String, List ServerConfiguration -> Result String (List ServerConfiguration), List ServerConfiguration )
+configurationTestData =
+    [ ( "ServeConfiguration"
+      , [ { tokenUri = "https://example.com/oath/token"
+          , clientId = "clientid"
+          , clientSecret = "secret"
+          , redirectBackHosts =
+                [ { host = "myexample.com", ssl = True }
+                , { host = "oauth-client-dev.com", ssl = False }
+                ]
+          }
+        , { tokenUri = "https://example2.com/oath/token"
+          , clientId = "clientid2"
+          , clientSecret = "secret2"
+          , redirectBackHosts =
+                [ { host = "myexample2.com", ssl = True }
+                , { host = "oauth-client-dev.com", ssl = False }
+                ]
+          }
+        ]
+      )
+    ]
+        |> List.map (insertEncodeDecode encodeDecodeConfigurations)
+
+
+decodeRedirectBackHost : String -> Result String RedirectBackHost
+decodeRedirectBackHost json =
+    JD.decodeString SC.redirectBackHostDecoder json
+
+
+redirectBackHostTestData : List ( String, Result String RedirectBackHost, Result String RedirectBackHost )
+redirectBackHostTestData =
+    [ ( "redirectBackHost 1"
+      , decodeRedirectBackHost "\"https://example.com\""
+      , Ok { host = "example.com", ssl = True }
+      )
+    , ( "redirectBackHost 2"
+      , decodeRedirectBackHost "\"example.com\""
+      , Ok { host = "example.com", ssl = False }
+      )
+    , ( "redirectBackHost 3"
+      , decodeRedirectBackHost "\"http://example.com\""
+      , Ok { host = "example.com", ssl = False }
+      )
+    ]

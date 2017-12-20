@@ -3,7 +3,7 @@
 
 This package implements the client side of a complete OAuth [Authorization Code](https://tools.ietf.org/html/rfc6749#section-1.3.1) Grant Flow.
 
-The grant flow requires a redirect server. That is also included in this package, but you must set it up on a server machine running Node.js. One server can handle multiple OAuth authorization services and webapps requiring authorization.
+The grant flow requires a redirect (callback) server. That is also included in this package, but you must set it up on a server machine running Node.js. One server can handle multiple OAuth authorization services and webapps requiring authorization.
 
 # How it works
 
@@ -17,7 +17,7 @@ The server configuration determines which redirect-back domains are allowed in t
 
 # Server details
 
-The [`server` directory](https://github.com/billstclair/elm-oauth-middleware/tree/master/server) contains the server code, which you must configure and run at a `<redirectUri>` that you've associated, via your OAuth authorization service(s), with your client ID(s) and client secret(s). See its README file for configuration instructions.
+The [`server` directory](https://github.com/billstclair/elm-oauth-middleware/tree/master/server) contains the server code, which you must configure and run at a `<redirectUri>` (AKA callback Uri) that you've associated, via your OAuth authorization service(s), with your client ID(s) and client secret(s). See its README file for configuration instructions.
 
 The `src` directory and this directory's `elm-package.json` implement the client side of the conversation, enabling initiating of the OAuth connection and processing the redirect when it comes back from the server.
 
@@ -31,7 +31,7 @@ During development, it's nice to be able to use your local machine for the clien
 
     127.0.0.1 oauth-client-dev.com
     
-Then you include `oauth-client-dev.com` in the `redirectBackHosts` in the servers `config.json` file.
+Then you include `oauth-client-dev.com` in the `redirectBackHosts` in the server's `config.json` file.
 
 You must start `elm-reactor` with your fake host:
 

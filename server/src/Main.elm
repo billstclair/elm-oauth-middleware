@@ -1,3 +1,15 @@
+----------------------------------------------------------------------
+--
+-- Main.elm
+-- Top-level file for OAuthMiddleware redirectBackUri server.
+-- Copyright (c) 2017 Bill St. Clair <billstclair@gmail.com>
+-- Some rights reserved.
+-- Distributed under the MIT License
+-- See LICENSE.txt
+--
+----------------------------------------------------------------------
+
+
 port module Main exposing (main)
 
 import Base64
@@ -8,9 +20,15 @@ import Erl.Query as Q
 import Http
 import Json.Decode as JD
 import Json.Encode as JE
+import List.Extra as LE
 import OAuth exposing (Authentication(..))
 import OAuth.AuthorizationCode
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
+import OAuthMiddleware.ServerConfiguration
+    exposing
+        ( ServerConfiguration
+        , serverConfigurationsDecoder
+        )
 import Platform
 import Server.Http
 import Time exposing (Time)
@@ -22,31 +40,23 @@ port getFile : String -> Cmd msg
 port receiveFile : (Maybe String -> msg) -> Sub msg
 
 
-type alias Configuration =
-    { tokenUri : String
-    , clientId : String
-    , clientSecret : String
-    , redirectBackHosts : List String
-    }
-
-
 type alias RedirectDict =
-    Dict ( String, String ) Configuration
+    Dict ( String, String ) ServerConfiguration
 
 
-addConfigToDict : Configuration -> RedirectDict -> RedirectDict
+addConfigToDict : ServerConfiguration -> RedirectDict -> RedirectDict
 addConfigToDict config dict =
     Dict.insert ( config.clientId, config.tokenUri ) config dict
 
 
-buildRedirectDict : List Configuration -> RedirectDict
+buildRedirectDict : List ServerConfiguration -> RedirectDict
 buildRedirectDict configs =
     List.foldl addConfigToDict Dict.empty configs
 
 
 type alias Model =
     { configString : String
-    , config : List Configuration
+    , config : List ServerConfiguration
     , redirectDict : RedirectDict
     }
 
@@ -79,41 +89,6 @@ getConfig =
     getFile configFile
 
 
-emptyConfig : Configuration
-emptyConfig =
-    { tokenUri = ""
-    , clientId = ""
-    , clientSecret = ""
-    , redirectBackHosts = []
-    }
-
-
-configsDecoder : JD.Decoder (List Configuration)
-configsDecoder =
-    (JD.list <|
-        JD.oneOf
-            [ configDecoder
-            , commentDecoder
-            ]
-    )
-        |> JD.map (List.filter <| (/=) emptyConfig)
-
-
-commentDecoder : JD.Decoder Configuration
-commentDecoder =
-    JD.field "comment" JD.string
-        |> JD.andThen (\_ -> JD.succeed emptyConfig)
-
-
-configDecoder : JD.Decoder Configuration
-configDecoder =
-    JD.map4 Configuration
-        (JD.field "tokenUri" JD.string)
-        (JD.field "clientId" JD.string)
-        (JD.field "clientSecret" JD.string)
-        (JD.field "redirectBackHosts" <| JD.list JD.string)
-
-
 receiveConfig : Maybe String -> Model -> ( Model, Cmd Msg )
 receiveConfig file model =
     case file of
@@ -140,7 +115,7 @@ receiveConfig file model =
             if json == model.configString then
                 model ! []
             else
-                case JD.decodeString configsDecoder json of
+                case JD.decodeString serverConfigurationsDecoder json of
                     Err msg ->
                         let
                             m =
@@ -273,6 +248,9 @@ tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code mo
 
         host =
             Erl.extractHost redirectBackUri
+
+        protocol =
+            Erl.extractProtocol redirectBackUri
     in
     case Dict.get key model.redirectDict of
         Nothing ->
@@ -284,22 +262,27 @@ tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code mo
                     ++ ")"
 
         Just { clientSecret, redirectBackHosts } ->
-            if not <| List.member host redirectBackHosts then
-                Err <| "Unknown redirect host: " ++ host
-            else
-                Ok <|
-                    OAuth.AuthorizationCode.authenticate <|
-                        AuthorizationCode
-                            { credentials =
-                                { clientId = clientId
-                                , secret = clientSecret
-                                }
-                            , code = code
-                            , redirectUri = redirectUri
-                            , scope = scope
-                            , state = Nothing --we already have this in our hand
-                            , url = tokenUri
-                            }
+            case LE.find (\rbh -> rbh.host == host) redirectBackHosts of
+                Nothing ->
+                    Err <| "Unknown redirect host: " ++ host
+
+                Just { ssl } ->
+                    if ssl && protocol /= "https" then
+                        Err <| "https protocol required for redirect host: " ++ host
+                    else
+                        Ok <|
+                            OAuth.AuthorizationCode.authenticate <|
+                                AuthorizationCode
+                                    { credentials =
+                                        { clientId = clientId
+                                        , secret = clientSecret
+                                        }
+                                    , code = code
+                                    , redirectUri = redirectUri
+                                    , scope = scope
+                                    , state = Nothing --we already have this in our hand
+                                    , url = tokenUri
+                                    }
 
 
 authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )

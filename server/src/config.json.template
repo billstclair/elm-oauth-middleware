@@ -8,6 +8,6 @@
   {"tokenUri": "https://example.com/oath/token",
    "clientId": "clientid",
    "clientSecret": "secret",
-   "redirectBackHosts": ["example.com"]
+   "redirectBackHosts": ["https://example.com", "oauth-client-dev.com"]
   }
 ]

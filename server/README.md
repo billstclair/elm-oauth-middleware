@@ -17,7 +17,7 @@ In order to run it on your server, first ensure that `node` and `npm` are instal
 
 # Build
 
-This required Elm. You may want to do it on your local server, and then upload `package.json` and the `build` directory to your server.
+This requires Elm. You may want to do it on your local server, and then upload `package.json` and the `build` directory to your server.
 
     cd .../elm-oauth-middleware/server
     npm run setup
@@ -45,11 +45,31 @@ For example, here's the line in the Apache site file for my server:
     bin/populate-site
     # Copy the site directory to your server machine
     # Make sure you `npm install xhr2` there.
+    # First time, create `config.json` as instructed below
     # Run `npm start` in that directory.
-    
-# Build, populate, updload server image
 
-If you have my [`rsyncit` script](https://github.com/billstclair/wws-scripts/blob/master/bin/rsyncit) in your `PATH`, and you create a `.sshdir` file [as instructed](https://github.com/billstclair/wws-scripts#rsyncit) for the `site` directory, you can build, populate, and upload the server image with one script:
+# config.json
+
+The server is configured by a file named `config.json` in its `build` directory. The `bin/populate-site` script copies the distribution file named `config.json.template` into `site/build`, but you need to create `config.json` yourself, on the server, starting with `config.json.template` as a template. Example:
+
+    [{"comment","Any configuration with a comment is ignored."
+     },
+     {"tokenUri": "https://example.com/oath/token",
+      "clientId": "clientid",
+      "clientSecret": "secret",
+      "redirectBackHosts": ["https://example.com", "oauth-client-dev.com"]
+     }
+    ]
+
+`tokenUri` and `clientId` are included in the `Authorization` fetched by `OAuthMiddleware.getAuthorization`. `redirectBackHosts` is a list of acceptable hosts for the `redirectUri` field in an `Authorization`. If a host name is prefixed with `https://`, then the incoming `redirectBackUri` must also be for the `https` protocol.
+
+The server hot-loads changes to `config.json`, so to change the configuration, just edit that file, and watch the server output to see that it successfully parsed the new configuration (I run my server in an Emacs shell, and run that emacs inside of a `screen` process). 
+    
+# Build, populate, and upload server image
+
+If you have my [`rsyncit` script](https://github.com/billstclair/wws-scripts/blob/master/bin/rsyncit) in your `PATH`, and you create a `.sshdir` file [as instructed](https://github.com/billstclair/wws-scripts#rsyncit) in the `site` directory, you can build, populate, and upload the server image with one script:
 
     cd .../elm-oauth-middleware/server
     bin/update-site
+
+This will NOT overwrite `config.json`.
