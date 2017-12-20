@@ -5,6 +5,10 @@ This package implements the client side of a complete OAuth [Authorization Code]
 
 The grant flow requires a redirect (callback) server. That is also included in this package, but you must set it up on a server machine running Node.js. One server can handle multiple OAuth authorization services and webapps requiring authorization.
 
+The Authorization Code grant flow is usually used for server-based web sites, where all the communication with the OAuth authorization and token server, and with the authenticated site, happens on the web server. This package allows you to do all but the token server communication in your Elm code, in the browser.
+
+Many OAuth-verified services provide one of the client-only grant flows. Those are supported directly by the [`truqu/elm-oauth2`](http://package.elm-lang.org/packages/truqu/elm-oauth2/latest) package, and don't require this package.
+
 # How it works
 
 Your Elm client software contacts the authorization server, via the `OAuthMiddleware` module, passing the `clientId`, `<redirectUri>`, and `<state>`. That sends the customer to the server web site to authorize the OAuth connection. If she successfully logs in, the authorization server redirects to the `<redirectUri>` with:
@@ -25,9 +29,15 @@ The server code is an adpatation of Asger Nelson's [`elm-web-server`](https://ww
 
 It implements a web server, which runs in [Node.js](https://nodejs.org/en/), and behaves as a redirect server for the grant flow. It can be configured to operate as redirect server for a number of different applications served from a number of different hosts.
 
+# CORS
+
+There are [Cross-Origin Resource Sharing](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) issues any time a web client communicates with a host other than the one that supplied its HTML. The OAuth providers I've tried all handle this properly, but if you successfully get a token, and then receive a `NetworkError` when you try to do a REST request, there may be a CORS problem, and you'll have to either convince the service provider to fix it, or move your code to the server.
+
+You can verify this in the `Network` tab of your web browser's developer tools. There will be an `OPTIONS` request, and the `Response Headers` will be missing one or more of (matching) `access-control-allow-methods`, `access-control-allow-origin`, or `access-control-allow-headers: authorization`.
+
 # Development
 
-During development, it's nice to be able to use your local machine for the client code, but still let the server get access tokens. You can do this by inventing a non-existent domain (anything you never use on the real web), and adding it to `/etc/hosts`
+During development, it's nice to be able to use your local machine for the client code, but still let the server get access tokens. You can do this by inventing a non-existent domain (anything you never use on the real web), and adding it to `/etc/hosts`:
 
     127.0.0.1 oauth-client-dev.com
     

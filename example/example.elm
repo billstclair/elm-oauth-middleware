@@ -120,6 +120,11 @@ apis =
             , path = "me/profile"
             }
           )
+        , ( "Facebook"
+          , { url = "https://graph.facebook.com/v2.5/"
+            , path = "me"
+            }
+          )
         , ( "Gab"
           , { url = "https://api.gab.ai/v1.0/"
             , path = "me" -- "users/{username}"
@@ -263,16 +268,6 @@ lookupProvider model =
                     }
 
 
-{-| Getting from GitHub for login:
-
-body = "access_token=elided&scope=user&token_type=bearer"
-
-Two things, from <https://developer.github.com/apps/building-oauth-apps/authorization-options-for-oauth-apps/>
-
-1.  Need to give it an "Accept: application/json" header.
-2.  It returns "s1,s2,s3" intead of ["s1","s2","s3"] for scope
-
--}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of

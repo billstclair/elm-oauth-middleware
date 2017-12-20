@@ -250,6 +250,18 @@ responseTokenEncoder responseToken =
 ---
 
 
+{-| We're never going to see any GitHub style scopes on the client side,
+but I copied the server decoder anyway.
+-}
+scopeDecoder : Decoder (List String)
+scopeDecoder =
+    JD.oneOf
+        [ JD.list JD.string
+        -- GitHub returns a comma-separated string, instead of a list of strings.
+        , JD.map (String.split ",") JD.string
+        ]
+
+
 {-| Decode the "response-token" query arg for the redirectBackUri
 -}
 responseTokenDecoder : Decoder OAuth.ResponseToken
@@ -267,7 +279,7 @@ responseTokenDecoder =
             accessTokenDecoder
             (JD.maybe <| JD.field "expires_in" JD.int)
             refreshTokenDecoder
-            (JD.maybe <| JD.field "scope" (JD.list JD.string))
+            (JD.maybe <| JD.field "scope" scopeDecoder)
             (JD.maybe <| JD.field "state" JD.string)
         ]
 
