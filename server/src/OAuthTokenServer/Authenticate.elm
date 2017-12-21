@@ -19,6 +19,7 @@ import Base64
 import Http as Http
 import Json.Decode as Json
 import OAuth exposing (Credentials, ResponseToken, Token(..))
+import OAuthMiddleware.EncodeDecode exposing (responseTokenDecoder)
 import QueryString as QS
 
 
@@ -77,71 +78,10 @@ makeRequest url headers body =
         , headers = headers
         , url = url
         , body = Http.stringBody "application/x-www-form-urlencoded" body
-        , expect = Http.expectJson decoder
+        , expect = Http.expectJson responseTokenDecoder
         , timeout = Nothing
         , withCredentials = False
         }
-
-
-scopeDecoder : Json.Decoder (List String)
-scopeDecoder =
-    Json.oneOf
-        [ Json.list Json.string
-
-        -- GitHub returns a comma-separated string, instead of a list of strings.
-        , Json.map (String.split ",") Json.string
-        ]
-
-
-decoder : Json.Decoder ResponseToken
-decoder =
-    Json.oneOf
-        [ Json.map5
-            (\token expiresIn refreshToken scope state ->
-                { token = token
-                , expiresIn = expiresIn
-                , refreshToken = refreshToken
-                , scope = Maybe.withDefault [] scope
-                , state = state
-                }
-            )
-            accessTokenDecoder
-            (Json.maybe <| Json.field "expires_in" Json.int)
-            refreshTokenDecoder
-            (Json.maybe <| Json.field "scope" scopeDecoder)
-            (Json.maybe <| Json.field "state" Json.string)
-        ]
-
-
-accessTokenDecoder : Json.Decoder Token
-accessTokenDecoder =
-    let
-        mtoken =
-            Json.map2 makeToken
-                (Json.field "access_token" Json.string |> Json.map Just)
-                (Json.field "token_type" Json.string)
-
-        failUnless =
-            Maybe.map Json.succeed >> Maybe.withDefault (Json.fail "can't decode token")
-    in
-    Json.andThen failUnless mtoken
-
-
-refreshTokenDecoder : Json.Decoder (Maybe Token)
-refreshTokenDecoder =
-    Json.map2 makeToken
-        (Json.maybe <| Json.field "refresh_token" Json.string)
-        (Json.field "token_type" Json.string)
-
-
-makeToken : Maybe String -> String -> Maybe Token
-makeToken mtoken tokenType =
-    case ( mtoken, String.toLower tokenType ) of
-        ( Just token, "bearer" ) ->
-            Just <| Bearer token
-
-        _ ->
-            Nothing
 
 
 qsAddList : String -> List String -> QS.QueryString -> QS.QueryString

@@ -78,7 +78,7 @@ This will NOT overwrite `config.json`.
 
 This section is mostly for me, so you can safely ignore it.
 
-I discovered while debugging the server, that GitHub's OAuth2 token server is not standard compliant. Unless you send it an `Accept: application/json` header, it URL-encodes the returned token, instead of sending it as JSON in the body. And they encode the returned `scope` as a comma-separated string instead of as the specified JSON array of strings (actually, the spec doesn't specify any return at ALL for `scope` or `state`, nor does it require them as input).
+I discovered while debugging the server, that GitHub's OAuth2 token server is not standard compliant. Unless you send it an `Accept: application/json` header, it URL-encodes the returned token, instead of sending it as JSON in the body. And they encode the returned `scope` as a comma-separated string instead of as the specified JSON array of strings (actually, the spec for Authorization Code grant flow doesn't specify any return at ALL for `scope` or `state`, nor does it require them as input, though they ARE returned by the Implicit grant flow token request).
 
 I fixed this in `truqu/elm-oauth2`, and submitted a [pull request](https://github.com/truqu/elm-oauth2/pull/3), but they, understandably, decided not to pollute their code with a one-vendor work-around. I just want the server to work with GitHub, so I copied the necessary code for their [`Internal`](https://github.com/truqu/elm-oauth2/blob/master/src/Internal.elm)`.authenticate` function into `src/OAuthTokenServer/Authenticate.elm`, and added my patch there.
 

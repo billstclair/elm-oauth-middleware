@@ -87,7 +87,7 @@ type alias Authorization =
 
 The JSON format is as follows. You'll change it with information from your OAuth provider, and for your redirect server, and store it in a convenient place on the same server serving your compiled Elm code.
 
-The `scopes` field is an object, mapping your internal name each scope to the actual OAuth provider name. For most OAuth providers, the two will be identical, but Google, for example, uses long URL-looking strings for scope names, so it's convenient to have a shorter name your application can use. This field isn't used by any of the `OAuthMiddleware` code, except the example, so you can safely set it to `{}`, if you prefer to just encode the scope strings as constants in your Elm code.
+The `scopes` field is an object, mapping your internal name for each scope to the actual OAuth provider name. For most OAuth providers, the two will be identical, but Google, for example, uses long URL-looking strings for scope names, so it's convenient to have a shorter name your application can use. This field isn't used by any of the `OAuthMiddleware` code, except the example, so you can safely set it to `{}`, if you prefer to just encode the scope strings as constants in your Elm code.
 
 Your client secret is stored with the redirect server, and never leaves that server machine.
 
@@ -187,7 +187,12 @@ type TokenState
     | NoToken
 
 
-{-| Parse a returned `ResponseToken` from a `Navigation.Location`
+{-| Parse a returned `ResponseToken` from a `Navigation.Location`.
+
+Note that the `scope` in the returned `TokenAndState` `ResponseToken` is not guaranteed to match what you requested. It will often be an empty list. The RFC 6749 [Authorization Code Grant](https://tools.ietf.org/html/rfc6749#section-4.1) flow does not provide scope to the token server, so it can't return them to you. Nor does the spec guarantee that you'll get all the scopes you requested in your call to `authorize`.
+
+Some OAuth token servers, e.g. GitHub's, DO return `scope`, even though the spec says they shouldn't. For those, the `OAuthMiddleware` server will return the scopes to your client application. But if you really need to know what you asked for, you need to encode that in your `state` (or browser local storage, via ports).
+
 -}
 receiveTokenAndState : Location -> TokenState
 receiveTokenAndState location =
