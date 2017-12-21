@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------
 --
--- Main.elm
+-- OAuthTokenServer.elm
 -- Top-level file for OAuthMiddleware redirectBackUri server.
 -- Copyright (c) 2017 Bill St. Clair <billstclair@gmail.com>
 -- Some rights reserved.
@@ -10,7 +10,7 @@
 ----------------------------------------------------------------------
 
 
-port module Main exposing (main)
+port module OAuthTokenServer exposing (main)
 
 import Base64
 import Debug
@@ -21,8 +21,8 @@ import Http
 import Json.Decode as JD
 import Json.Encode as JE
 import List.Extra as LE
-import OAuth exposing (Authentication(..))
-import OAuth.AuthorizationCode
+import OAuth
+import OAuthTokenServer.Authenticate exposing (authenticate)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
 import OAuthMiddleware.ServerConfiguration
     exposing
@@ -271,20 +271,19 @@ tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code mo
                         Err <| "https protocol required for redirect host: " ++ host
                     else
                         Ok <|
-                            OAuth.AuthorizationCode.authenticate <|
-                                AuthorizationCode
-                                    { credentials =
-                                        { clientId = clientId
-                                        , secret = clientSecret
-                                        }
-                                    , code = code
-                                    , redirectUri = redirectUri
-                                    , scope = scope
-                                    , state = Nothing --we already have this in our hand
-                                    , url = tokenUri
-                                    }
-
-
+                            authenticate
+                                { credentials =
+                                      { clientId = clientId
+                                      , secret = clientSecret
+                                      }
+                                , code = code
+                                , redirectUri = redirectUri
+                                , scope = scope
+                                , state = Nothing --we already have this in our hand
+                                , url = tokenUri
+                                }
+                            
+                            
 authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
 authRequest code b64State url request model =
     let
