@@ -4,7 +4,13 @@
    "comment": "You may have as many objects here as you want.",
    "comment": "The server probes config.json every two seconds,",
    "comment": "so changes take effect quickly."
+   "comment": "Objects containing a 'comment' key will be ignored."
+   "comment": "The 'port' and 'configSamplePeriod' object is optional",
+   "comment": "and defaults as below. Both attributes are optional."
    },
+  {"port": 3000,
+   "configSamplePeriod": 2
+  },
   {"tokenUri": "https://example.com/oath/token",
    "clientId": "clientid",
    "clientSecret": "secret",

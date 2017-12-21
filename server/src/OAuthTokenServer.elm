@@ -25,8 +25,8 @@ import OAuth
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
 import OAuthMiddleware.ServerConfiguration
     exposing
-        ( ServerConfiguration
-        , serverConfigurationsDecoder
+        ( RemoteServerConfiguration
+        , configurationsDecoder
         )
 import OAuthTokenServer.Authenticate exposing (authenticate)
 import Platform
@@ -41,22 +41,22 @@ port receiveFile : (Maybe String -> msg) -> Sub msg
 
 
 type alias RedirectDict =
-    Dict ( String, String ) ServerConfiguration
+    Dict ( String, String ) RemoteServerConfiguration
 
 
-addConfigToDict : ServerConfiguration -> RedirectDict -> RedirectDict
+addConfigToDict : RemoteServerConfiguration -> RedirectDict -> RedirectDict
 addConfigToDict config dict =
     Dict.insert ( config.clientId, config.tokenUri ) config dict
 
 
-buildRedirectDict : List ServerConfiguration -> RedirectDict
+buildRedirectDict : List RemoteServerConfiguration -> RedirectDict
 buildRedirectDict configs =
     List.foldl addConfigToDict Dict.empty configs
 
 
 type alias Model =
     { configString : String
-    , config : List ServerConfiguration
+    , config : List RemoteServerConfiguration
     , redirectDict : RedirectDict
     }
 
@@ -115,7 +115,7 @@ receiveConfig file model =
             if json == model.configString then
                 model ! []
             else
-                case JD.decodeString serverConfigurationsDecoder json of
+                case JD.decodeString configurationsDecoder json of
                     Err msg ->
                         let
                             m =
@@ -132,20 +132,20 @@ receiveConfig file model =
                         { model | configString = json }
                             ! []
 
-                    Ok config ->
+                    Ok { local, remote } ->
                         let
                             m =
-                                if config == [] then
+                                if remote == [] then
                                     Debug.log "Notice"
-                                        "Empty configuration disabled server."
+                                        "Empty remote configuration disabled server."
                                 else
                                     Debug.log "Notice"
                                         ("Successfully parsed " ++ configFile)
                         in
                         { model
                             | configString = json
-                            , config = config
-                            , redirectDict = buildRedirectDict config
+                            , config = remote
+                            , redirectDict = buildRedirectDict remote
                         }
                             ! []
 

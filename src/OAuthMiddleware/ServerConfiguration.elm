@@ -12,14 +12,14 @@
 
 module OAuthMiddleware.ServerConfiguration
     exposing
-        ( RedirectBackHost
-        , ServerConfiguration
+        ( Configurations
+        , LocalServerConfiguration
+        , RedirectBackHost
+        , RemoteServerConfiguration
+        , configurationsDecoder
+        , configurationsEncoder
         , redirectBackHostDecoder
         , redirectBackHostEncoder
-        , serverConfigurationDecoder
-        , serverConfigurationEncoder
-        , serverConfigurationsDecoder
-        , serverConfigurationsEncoder
         )
 
 import Erl
@@ -33,7 +33,7 @@ type alias RedirectBackHost =
     }
 
 
-type alias ServerConfiguration =
+type alias RemoteServerConfiguration =
     { tokenUri : String
     , clientId : String
     , clientSecret : String
@@ -41,30 +41,25 @@ type alias ServerConfiguration =
     }
 
 
-emptyConfig : ServerConfiguration
+type alias LocalServerConfiguration =
+    { httpPort : Int
+    , configSamplePeriod : Int
+    }
+
+
+type ServerConfiguration
+    = Remote RemoteServerConfiguration
+    | Local LocalServerConfiguration
+    | Comment
+
+
+emptyConfig : RemoteServerConfiguration
 emptyConfig =
     { tokenUri = ""
     , clientId = ""
     , clientSecret = ""
     , redirectBackHosts = []
     }
-
-
-serverConfigurationsDecoder : Decoder (List ServerConfiguration)
-serverConfigurationsDecoder =
-    (JD.list <|
-        JD.oneOf
-            [ serverConfigurationDecoder
-            , commentDecoder
-            ]
-    )
-        |> JD.map (List.filter <| (/=) emptyConfig)
-
-
-commentDecoder : Decoder ServerConfiguration
-commentDecoder =
-    JD.field "comment" JD.string
-        |> JD.andThen (\_ -> JD.succeed emptyConfig)
 
 
 parseRedirectBackHost : String -> RedirectBackHost
@@ -86,18 +81,116 @@ redirectBackHostDecoder =
     JD.string |> JD.andThen (JD.succeed << parseRedirectBackHost)
 
 
+defaultHttpPort : Int
+defaultHttpPort =
+    3000
+
+
+defaultConfigSamplePeriod : Int
+defaultConfigSamplePeriod =
+    2
+
+
+defaultLocalServerConfiguration : LocalServerConfiguration
+defaultLocalServerConfiguration =
+    { httpPort = defaultHttpPort
+    , configSamplePeriod = defaultConfigSamplePeriod
+    }
+
+
+serverConfigurationsDecoder : Decoder (List ServerConfiguration)
+serverConfigurationsDecoder =
+    JD.list serverConfigurationDecoder
+
+
+type alias Configurations =
+    { local : LocalServerConfiguration
+    , remote : List RemoteServerConfiguration
+    }
+
+
+splitLocalRemote : List ServerConfiguration -> ( List LocalServerConfiguration, List RemoteServerConfiguration )
+splitLocalRemote configs =
+    let
+        loop =
+            \configs local remote ->
+                case configs of
+                    [] ->
+                        ( List.reverse local, List.reverse remote )
+
+                    (Local loc) :: rest ->
+                        loop rest (loc :: local) remote
+
+                    (Remote rem) :: rest ->
+                        loop rest local (rem :: remote)
+
+                    _ :: rest ->
+                        loop rest local remote
+    in
+    loop configs [] []
+
+
+serverConfigurationsToConfigurations : List ServerConfiguration -> Decoder Configurations
+serverConfigurationsToConfigurations configs =
+    let
+        ( locals, remotes ) =
+            splitLocalRemote configs
+    in
+    case locals of
+        _ :: _ :: _ ->
+            JD.fail "Multiple local configuations."
+
+        _ ->
+            JD.succeed
+                { local =
+                    case locals of
+                        [] ->
+                            defaultLocalServerConfiguration
+
+                        loc :: _ ->
+                            loc
+                , remote = remotes
+                }
+
+
+configurationsDecoder : Decoder Configurations
+configurationsDecoder =
+    serverConfigurationsDecoder
+        |> JD.andThen serverConfigurationsToConfigurations
+
+
 serverConfigurationDecoder : Decoder ServerConfiguration
 serverConfigurationDecoder =
-    JD.map4 ServerConfiguration
-        (JD.field "tokenUri" JD.string)
-        (JD.field "clientId" JD.string)
-        (JD.field "clientSecret" JD.string)
-        (JD.field "redirectBackHosts" <| JD.list redirectBackHostDecoder)
+    JD.oneOf
+        [ JD.map (\_ -> Comment)
+            (JD.field "comment" JD.value)
+        , JD.map4 RemoteServerConfiguration
+            (JD.field "tokenUri" JD.string)
+            (JD.field "clientId" JD.string)
+            (JD.field "clientSecret" JD.string)
+            (JD.field "redirectBackHosts" <| JD.list redirectBackHostDecoder)
+            |> JD.map Remote
+        , JD.map2 LocalServerConfiguration
+            (JD.oneOf
+                [ JD.field "port" JD.int
+                , JD.succeed defaultHttpPort
+                ]
+            )
+            (JD.oneOf
+                [ JD.field "configSamplePeriod" JD.int
+                , JD.succeed defaultConfigSamplePeriod
+                ]
+            )
+            |> JD.map Local
+        ]
 
 
-serverConfigurationsEncoder : List ServerConfiguration -> Value
-serverConfigurationsEncoder configs =
-    JE.list <| List.map serverConfigurationEncoder configs
+configurationsEncoder : Configurations -> Value
+configurationsEncoder configs =
+    JE.list
+        (localConfigurationEncoder configs.local
+            :: List.map remoteConfigurationEncoder configs.remote
+        )
 
 
 redirectBackHostEncoder : RedirectBackHost -> Value
@@ -112,8 +205,16 @@ redirectBackHostEncoder host =
     JE.string <| https ++ host.host
 
 
-serverConfigurationEncoder : ServerConfiguration -> Value
-serverConfigurationEncoder config =
+localConfigurationEncoder : LocalServerConfiguration -> Value
+localConfigurationEncoder config =
+    JE.object
+        [ ( "port", JE.int config.httpPort )
+        , ( "configSamplePeriod", JE.int config.configSamplePeriod )
+        ]
+
+
+remoteConfigurationEncoder : RemoteServerConfiguration -> Value
+remoteConfigurationEncoder config =
     JE.object
         [ ( "tokenUri", JE.string config.tokenUri )
         , ( "clientId", JE.string config.clientId )

@@ -10,8 +10,8 @@ import OAuthMiddleware exposing (Authorization)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState, ResponseTokenError)
 import OAuthMiddleware.ServerConfiguration as SC
     exposing
-        ( RedirectBackHost
-        , ServerConfiguration
+        ( Configurations
+        , RedirectBackHost
         )
 import Test exposing (..)
 
@@ -45,6 +45,7 @@ all =
             , List.map doEncodeTest authorizationTestData
             , List.map doEncodeTest configurationTestData
             , List.map doSbWasTest redirectBackHostTestData
+            , List.map doSbWasTest decodeConfigurationsTestData
             ]
 
 
@@ -111,9 +112,9 @@ encodeDecodeAuthorization =
     encodeDecode ED.authorizationEncoder ED.authorizationDecoder
 
 
-encodeDecodeConfigurations : List ServerConfiguration -> Result String (List ServerConfiguration)
+encodeDecodeConfigurations : Configurations -> Result String Configurations
 encodeDecodeConfigurations =
-    encodeDecode SC.serverConfigurationsEncoder SC.serverConfigurationsDecoder
+    encodeDecode SC.configurationsEncoder SC.configurationsDecoder
 
 
 insertEncodeDecode : (a -> Result String a) -> ( String, a ) -> ( String, a -> Result String a, a )
@@ -193,26 +194,32 @@ authorizationTestData =
         |> List.map (insertEncodeDecode encodeDecodeAuthorization)
 
 
-configurationTestData : List ( String, List ServerConfiguration -> Result String (List ServerConfiguration), List ServerConfiguration )
+configurationTestData : List ( String, Configurations -> Result String Configurations, Configurations )
 configurationTestData =
-    [ ( "ServeConfiguration"
-      , [ { tokenUri = "https://example.com/oath/token"
-          , clientId = "clientid"
-          , clientSecret = "secret"
-          , redirectBackHosts =
-                [ { host = "myexample.com", ssl = True }
-                , { host = "oauth-client-dev.com", ssl = False }
-                ]
-          }
-        , { tokenUri = "https://example2.com/oath/token"
-          , clientId = "clientid2"
-          , clientSecret = "secret2"
-          , redirectBackHosts =
-                [ { host = "myexample2.com", ssl = True }
-                , { host = "oauth-client-dev.com", ssl = False }
-                ]
-          }
-        ]
+    [ ( "Configurations"
+      , { local =
+            { httpPort = 3001
+            , configSamplePeriod = 3
+            }
+        , remote =
+            [ { tokenUri = "https://example.com/oath/token"
+              , clientId = "clientid"
+              , clientSecret = "secret"
+              , redirectBackHosts =
+                    [ { host = "myexample.com", ssl = True }
+                    , { host = "oauth-client-dev.com", ssl = False }
+                    ]
+              }
+            , { tokenUri = "https://example2.com/oath/token"
+              , clientId = "clientid2"
+              , clientSecret = "secret2"
+              , redirectBackHosts =
+                    [ { host = "myexample2.com", ssl = True }
+                    , { host = "oauth-client-dev.com", ssl = False }
+                    ]
+              }
+            ]
+        }
       )
     ]
         |> List.map (insertEncodeDecode encodeDecodeConfigurations)
@@ -236,5 +243,53 @@ redirectBackHostTestData =
     , ( "redirectBackHost 3"
       , decodeRedirectBackHost "\"http://example.com\""
       , Ok { host = "example.com", ssl = False }
+      )
+    ]
+
+
+decodeConfigurations : String -> Result String Configurations
+decodeConfigurations json =
+    JD.decodeString SC.configurationsDecoder json
+
+
+decodeConfigurationsTestData : List ( String, Result String Configurations, Result String Configurations )
+decodeConfigurationsTestData =
+    [ ( "decodeConfigurations 1"
+      , decodeConfigurations
+            """
+           [ {"comment": 1,
+              "port": 3000
+             },
+             {"port": 3001}
+           ]
+          """
+      , Ok
+            { local =
+                { httpPort = 3001
+                , configSamplePeriod = 2
+                }
+            , remote = []
+            }
+      )
+    , ( "decodeConfigurations 2"
+      , decodeConfigurations
+            """
+           [ {"port": 3000 }
+           , {"configSamplePeriod": 3}
+           ]
+           """
+      , Err "error messages are not compared"
+      )
+    , ( "decodeConfigurations 3"
+        -- misspelled "clientId"
+      , decodeConfigurations
+            """
+           [ {"tokenUri": "https://example.com/oath/token",
+             "clientID": "clientid",
+             "clientSecret": "secret",
+             "redirectBackHosts": ["https://example.com", "oauth-client-dev.com"]
+           ]
+           """
+      , Err "error messages are ignored."
       )
     ]
