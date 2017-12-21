@@ -12,13 +12,14 @@
 --
 ----------------------------------------------------------------------
 
+
 module OAuthTokenServer.Authenticate exposing (authenticate)
 
-import OAuth exposing (Credentials, ResponseToken, Token(..))
-import Http as Http
-import QueryString as QS
-import Json.Decode as Json
 import Base64
+import Http as Http
+import Json.Decode as Json
+import OAuth exposing (Credentials, ResponseToken, Token(..))
+import QueryString as QS
 
 
 type alias Authentication =
@@ -33,28 +34,30 @@ type alias Authentication =
 
 authenticate : Authentication -> Http.Request ResponseToken
 authenticate authentication =
-            let
-                { credentials, code, redirectUri, scope, state, url } = authentication
-                body =
-                    QS.empty
-                        |> QS.add "grant_type" "authorization_code"
-                        |> QS.add "client_id" credentials.clientId
-                        |> QS.add "redirect_uri" redirectUri
-                        |> QS.add "code" code
-                        |> qsAddList "scope" scope
-                        |> qsAddMaybe "state" state
-                        |> QS.render
-                        |> String.dropLeft 1
+    let
+        { credentials, code, redirectUri, scope, state, url } =
+            authentication
 
-                headers =
-                    authHeader <|
-                        if String.isEmpty credentials.secret then
-                            Nothing
-                        else
-                            Just credentials
-            in
-                makeRequest url headers body
-            
+        body =
+            QS.empty
+                |> QS.add "grant_type" "authorization_code"
+                |> QS.add "client_id" credentials.clientId
+                |> QS.add "redirect_uri" redirectUri
+                |> QS.add "code" code
+                |> qsAddList "scope" scope
+                |> qsAddMaybe "state" state
+                |> QS.render
+                |> String.dropLeft 1
+
+        headers =
+            authHeader <|
+                if String.isEmpty credentials.secret then
+                    Nothing
+                else
+                    Just credentials
+    in
+    makeRequest url headers body
+
 
 authHeader : Maybe Credentials -> List Http.Header
 authHeader credentials =
@@ -64,7 +67,7 @@ authHeader credentials =
         |> Maybe.map (\s -> [ Http.header "Authorization" ("Basic " ++ s) ])
         |> Maybe.withDefault []
         -- GitHub requires this header, or it URL-encodes the result
-        |> (::) (Http.header "accept" "application/json")
+        |> (::) (Http.header "Accept" "application/json")
 
 
 makeRequest : String -> List Http.Header -> String -> Http.Request ResponseToken
@@ -79,13 +82,16 @@ makeRequest url headers body =
         , withCredentials = False
         }
 
+
 scopeDecoder : Json.Decoder (List String)
 scopeDecoder =
     Json.oneOf
         [ Json.list Json.string
+
         -- GitHub returns a comma-separated string, instead of a list of strings.
         , Json.map (String.split ",") Json.string
         ]
+
 
 decoder : Json.Decoder ResponseToken
 decoder =
@@ -118,7 +124,7 @@ accessTokenDecoder =
         failUnless =
             Maybe.map Json.succeed >> Maybe.withDefault (Json.fail "can't decode token")
     in
-        Json.andThen failUnless mtoken
+    Json.andThen failUnless mtoken
 
 
 refreshTokenDecoder : Json.Decoder (Maybe Token)

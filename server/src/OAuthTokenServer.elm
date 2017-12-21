@@ -22,13 +22,13 @@ import Json.Decode as JD
 import Json.Encode as JE
 import List.Extra as LE
 import OAuth
-import OAuthTokenServer.Authenticate exposing (authenticate)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
 import OAuthMiddleware.ServerConfiguration
     exposing
         ( ServerConfiguration
         , serverConfigurationsDecoder
         )
+import OAuthTokenServer.Authenticate exposing (authenticate)
 import Platform
 import Server.Http
 import Time exposing (Time)
@@ -273,17 +273,17 @@ tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code mo
                         Ok <|
                             authenticate
                                 { credentials =
-                                      { clientId = clientId
-                                      , secret = clientSecret
-                                      }
+                                    { clientId = clientId
+                                    , secret = clientSecret
+                                    }
                                 , code = code
                                 , redirectUri = redirectUri
                                 , scope = scope
                                 , state = Nothing --we already have this in our hand
                                 , url = tokenUri
                                 }
-                            
-                            
+
+
 authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
 authRequest code b64State url request model =
     let
