@@ -18,6 +18,7 @@ module OAuthMiddleware.ServerConfiguration
         , RemoteServerConfiguration
         , configurationsDecoder
         , configurationsEncoder
+        , defaultLocalServerConfiguration
         , redirectBackHostDecoder
         , redirectBackHostEncoder
         )

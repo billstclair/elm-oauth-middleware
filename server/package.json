@@ -17,5 +17,6 @@
   "author": "Bill St. Clair <billstclair@gmail.com",
   "license": "MIT",
   "dependencies": {
+    "xhr2": "latest"
   }
 }

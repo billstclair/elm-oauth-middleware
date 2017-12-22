@@ -7,7 +7,7 @@ In order to run it on your server, first ensure that `node` and `npm` are instal
     cd ...
     git clone https://github.com/billstclair/elm-oauth-middleware.git
     cd elm-oauth-middleware
-    npm install xhr2
+    npm install
 
 # Configure
 
@@ -43,10 +43,11 @@ For example, here's the line in the Apache site file for my server:
     cd .../elm-oauth-middleware/server
     npm run build
     bin/populate-site
-    # Copy the site directory to your server machine
-    # Make sure you `npm install xhr2` there.
-    # First time, create `config.json` as instructed below
-    # Run `npm start` in that directory.
+    # Copy the site directory to your server machine.
+    # Create `config.json` as instructed below.
+    cd .../<the site directory>
+    npm install # once
+    npm start
 
 # config.json
 

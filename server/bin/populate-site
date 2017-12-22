@@ -1,4 +1,5 @@
 #!/bin/bash
 
+npm run build
 cp -p package.json site/
 cp -Rp build site/

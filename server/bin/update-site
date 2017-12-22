@@ -1,8 +1,5 @@
 #!/bin/bash
 
-npm run build
 bin/populate-site
 cd site
-rsyncit -av --exclude=config.json --exclude=.sshdir --exclude=.gitignore ./
-
-
+rsyncit -av --exclude=config.json --exclude=.sshdir --exclude=.gitignore --exclude=node_modules ./

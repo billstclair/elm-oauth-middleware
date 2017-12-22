@@ -25,8 +25,10 @@ import OAuth
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
 import OAuthMiddleware.ServerConfiguration
     exposing
-        ( RemoteServerConfiguration
+        ( LocalServerConfiguration
+        , RemoteServerConfiguration
         , configurationsDecoder
+        , defaultLocalServerConfiguration
         )
 import OAuthTokenServer.Authenticate exposing (authenticate)
 import Platform
@@ -38,6 +40,9 @@ port getFile : String -> Cmd msg
 
 
 port receiveFile : (Maybe String -> msg) -> Sub msg
+
+
+port httpListen : Int -> Cmd msg
 
 
 type alias RedirectDict =
@@ -58,6 +63,7 @@ type alias Model =
     { configString : String
     , config : List RemoteServerConfiguration
     , redirectDict : RedirectDict
+    , localConfig : LocalServerConfiguration
     }
 
 
@@ -74,6 +80,7 @@ init =
     ( { configString = ""
       , config = []
       , redirectDict = Dict.empty
+      , localConfig = { defaultLocalServerConfiguration | httpPort = -4321 }
       }
     , getConfig
     )
@@ -142,12 +149,27 @@ receiveConfig file model =
                                     Debug.log "Notice"
                                         ("Successfully parsed " ++ configFile)
                         in
-                        { model
-                            | configString = json
-                            , config = remote
-                            , redirectDict = buildRedirectDict remote
-                        }
-                            ! []
+                        updateLocalConfig
+                            local
+                            { model
+                                | configString = json
+                                , config = remote
+                                , redirectDict = buildRedirectDict remote
+                            }
+
+
+updateLocalConfig : LocalServerConfiguration -> Model -> ( Model, Cmd Msg )
+updateLocalConfig config model =
+    let
+        cmd =
+            if config.httpPort == model.localConfig.httpPort then
+                Cmd.none
+            else
+                httpListen config.httpPort
+    in
+    ( { model | localConfig = config }
+    , cmd
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -337,12 +359,21 @@ routeRequest incoming =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ Server.Http.listen routeRequest
-        , receiveFile ReceiveConfig
-        , Time.every (2 * Time.second) ProbeConfig
-        ]
+subscriptions model =
+    Sub.batch <|
+        List.concat
+            [ [ Server.Http.listen routeRequest
+              , receiveFile ReceiveConfig
+              ]
+            , let
+                period =
+                    model.localConfig.configSamplePeriod
+              in
+              if period <= 0 then
+                []
+              else
+                [ Time.every (toFloat period * Time.second) ProbeConfig ]
+            ]
 
 
 main =

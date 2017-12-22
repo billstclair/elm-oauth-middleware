@@ -274,13 +274,28 @@ decodeConfigurationsTestData =
     , ( "decodeConfigurations 2"
       , decodeConfigurations
             """
+           [ {"configSamplePeriod": 0}
+           ]
+          """
+      , Ok
+            { local =
+                { httpPort = 3000
+                , configSamplePeriod = 0
+                }
+            , remote = []
+            }
+      )
+    , ( "decodeConfigurations 3"
+        -- Multiple local configurations
+      , decodeConfigurations
+            """
            [ {"port": 3000 }
            , {"configSamplePeriod": 3}
            ]
            """
       , Err "error messages are not compared"
       )
-    , ( "decodeConfigurations 3"
+    , ( "decodeConfigurations 4"
         -- misspelled "clientId"
       , decodeConfigurations
             """
