@@ -8,7 +8,7 @@ First, clone the code on your computer:
 
 Learn how to configure and run the server in the [server](../server/) directory's README. Part of doing that will be to create an Authorization Code Grant Flow account with an OAuth provider. I have tested this code with GitHub, Gmail, and Facebook. Others will likely work as well.
 
-If you will run the example only on a web server at a domain configured for your server, you're golden. To run from your development machine, you have to invent an unused domain name, enter it in the `redirectBackHosts` in the server's `config.json` file, add it to `/etc/hosts` on your development machine, as instructed in the server README, and use it in the `elm-reactor` startup below, where I'm calling it `oauth-client-dev.com`.
+If you will run the example only on a web server at a domain configured for your server, you're golden. To run from your development machine, you have to invent an unused domain name, enter it in the `redirectBackHosts` in the server's `config.json` file, add it to `/etc/hosts` on your development machine, [as instructed](https://github.com/billstclair/elm-oauth-middleware#development) in the top-level README, and use it in the `elm-reactor` startup below, where I'm calling it `oauth-client-dev.com`.
 
 Next, you need to create an API configuration file for the example. Copy [`authorizations.json.template`](authorizations.json.template) to `authorizations.json`, and edit that file to contain your OAuth server(s) information.
 
