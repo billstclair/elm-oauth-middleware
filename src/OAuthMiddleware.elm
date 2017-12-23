@@ -83,7 +83,31 @@ type alias Authorization =
     ED.Authorization
 
 
+getNoCache : Bool -> String -> Decoder a -> Http.Request a
+getNoCache useCache url decoder =
+    Http.request
+        { method = "GET"
+        , headers =
+            if useCache then
+                []
+            else
+                [ Http.header
+                    "Cache-Control"
+                    "no-cache, no-store, must-revalidate"
+                ]
+        , url = url
+        , body = Http.emptyBody
+        , expect = Http.expectJson decoder
+        , timeout = Nothing
+        , withCredentials = False
+        }
+
+
 {-| Get a JSON file encoding an `Authorization`.
+
+    getAuthorization useCache url
+
+If `useCache` is true, will use the browser's cache, meaning that it may not immediately notice changes to the file on the server.
 
 The JSON format is as follows. You'll change it with information from your OAuth provider, and for your redirect server, and store it in a convenient place on the same server serving your compiled Elm code.
 
@@ -100,16 +124,21 @@ Your client secret is stored with the redirect server, and never leaves that ser
     }
 
 -}
-getAuthorization : String -> Http.Request Authorization
-getAuthorization url =
-    Http.get url ED.authorizationDecoder
+getAuthorization : Bool -> String -> Http.Request Authorization
+getAuthorization useCache url =
+    getNoCache useCache url ED.authorizationDecoder
 
 
 {-| Get a JSON file encoding an `Authorization` list.
+
+    getAuthorizations useCache url
+
+If `useCache` is true, will use the browser's cache, meaning that it may not immediately notice changes to the file on the server.
+
 -}
-getAuthorizations : String -> Http.Request (List Authorization)
-getAuthorizations url =
-    Http.get url ED.authorizationsDecoder
+getAuthorizations : Bool -> String -> Http.Request (List Authorization)
+getAuthorizations useCache url =
+    getNoCache useCache url ED.authorizationsDecoder
 
 
 {-| Convert a `Navigation.Location` into a string suitable for the `redirectBackUri` in a `TokenAuthorization`.

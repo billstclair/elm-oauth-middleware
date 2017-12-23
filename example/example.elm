@@ -17,40 +17,22 @@ import Html
     exposing
         ( Attribute
         , Html
-        , a
-        , br
         , button
         , div
         , h2
-        , input
         , option
         , p
         , pre
         , select
-        , span
-        , table
-        , td
         , text
-        , textarea
-        , th
-        , tr
         )
 import Html.Attributes
     exposing
-        ( checked
-        , cols
-        , disabled
-        , href
-        , name
-        , rows
-        , selected
-        , size
+        ( selected
         , style
-        , target
-        , type_
         , value
         )
-import Html.Events exposing (on, onClick, onInput, targetValue)
+import Html.Events exposing (onClick, onInput)
 import Http
 import Json.Decode as JD
 import Json.Encode as JE exposing (Value)
@@ -75,9 +57,11 @@ import OAuthMiddleware.EncodeDecode
 
 
 type alias Model =
-    { token : Maybe ResponseToken
+    { authorization : Maybe Authorization
+    , token : Maybe ResponseToken
     , state : Maybe String
     , msg : Maybe String
+    , replyType : String
     , reply : Maybe Value
     , redirectBackUri : String
     , provider : String
@@ -102,8 +86,7 @@ userAgentHeader =
 
 
 type alias Api =
-    { url : String
-    , path : String
+    { getUser : String
     }
 
 
@@ -111,23 +94,19 @@ apis : Dict String Api
 apis =
     Dict.fromList
         [ ( "GitHub"
-          , { url = "https://api.github.com/"
-            , path = "user"
+          , { getUser = "user"
             }
           )
         , ( "Gmail"
-          , { url = "https://www.googleapis.com/gmail/v1/users/"
-            , path = "me/profile"
+          , { getUser = "me/profile"
             }
           )
         , ( "Facebook"
-          , { url = "https://graph.facebook.com/v2.5/"
-            , path = "me"
+          , { getUser = "me"
             }
           )
         , ( "Gab"
-          , { url = "https://api.gab.ai/v1.0/"
-            , path = "me" -- "users/{username}"
+          , { getUser = "me" -- "users/{username}"
             }
           )
         ]
@@ -160,9 +139,11 @@ init location =
                 NoToken ->
                     ( Nothing, Nothing, Nothing )
     in
-    { token = token
+    { authorization = Nothing
+    , token = token
     , state = state
     , msg = msg
+    , replyType = "Token"
     , reply =
         case token of
             Nothing ->
@@ -183,7 +164,7 @@ init location =
     , api = Nothing
     }
         ! [ Http.send ReceiveAuthorizations <|
-                getAuthorizations "authorizations.json"
+                getAuthorizations False "authorizations.json"
           , Navigation.modifyUrl "#"
           ]
 
@@ -198,15 +179,11 @@ getUser model =
                 ! []
 
         Just token ->
-            case model.api of
-                Nothing ->
-                    { model | msg = Just "No know API." }
-                        ! []
-
-                Just api ->
+            case ( model.api, model.authorization ) of
+                ( Just api, Just auth ) ->
                     let
                         url =
-                            api.url ++ api.path
+                            auth.apiUri ++ api.getUser
 
                         req =
                             Http.request
@@ -220,6 +197,10 @@ getUser model =
                                 }
                     in
                     model ! [ Http.send ReceiveUser req ]
+
+                _ ->
+                    { model | msg = Just "No known API." }
+                        ! []
 
 
 lookupProvider : Model -> Model
@@ -265,6 +246,7 @@ lookupProvider model =
                                 , redirectBackUri = model.redirectBackUri
                                 }
                         , api = api
+                        , authorization = authorization
                     }
 
 
@@ -281,20 +263,26 @@ update msg model =
                         ! []
 
                 Ok authorizations ->
+                    let
+                        ( replyType, reply ) =
+                            case ( model.token, model.msg ) of
+                                ( Nothing, Nothing ) ->
+                                    ( "Authorizations"
+                                    , Just <|
+                                        authorizationsEncoder
+                                            authorizations
+                                    )
+
+                                _ ->
+                                    ( model.replyType, model.reply )
+                    in
                     lookupProvider
                         { model
                             | authorizations =
                                 Dict.fromList <|
                                     List.map (\a -> ( a.name, a )) authorizations
-                            , reply =
-                                case ( model.token, model.msg ) of
-                                    ( Nothing, Nothing ) ->
-                                        Just <|
-                                            authorizationsEncoder
-                                                authorizations
-
-                                    _ ->
-                                        model.reply
+                            , replyType = replyType
+                            , reply = reply
                         }
                         ! []
 
@@ -327,7 +315,8 @@ update msg model =
 
                 Ok reply ->
                     { model
-                        | reply = Just reply
+                        | replyType = "API Response"
+                        , reply = Just reply
                         , msg = Nothing
                     }
                         ! []
@@ -375,7 +364,7 @@ view model =
                     text <| toString msg
 
                 ( _, Just reply ) ->
-                    text <| JE.encode 2 reply
+                    text <| model.replyType ++ ":\n" ++ JE.encode 2 reply
 
                 _ ->
                     text "Nothing to report"

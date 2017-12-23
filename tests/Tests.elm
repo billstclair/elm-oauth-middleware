@@ -46,6 +46,7 @@ all =
             , List.map doEncodeTest configurationTestData
             , List.map doSbWasTest redirectBackHostTestData
             , List.map doSbWasTest decodeConfigurationsTestData
+            , List.map doSbWasTest decodeAuthorizationsTestData
             ]
 
 
@@ -180,6 +181,7 @@ authorizationTestData =
     [ ( "Authorization"
       , { name = "Gmail"
         , authorizationUri = "authorizationuri"
+        , apiUri = "apiuri"
         , tokenUri = "tokenuri"
         , clientId = "clientid"
         , redirectUri = "redirecturi"
@@ -306,5 +308,48 @@ decodeConfigurationsTestData =
            ]
            """
       , Err "error messages are ignored."
+      )
+    ]
+
+
+decodeAuthorizations : String -> Result String (List Authorization)
+decodeAuthorizations json =
+    JD.decodeString ED.authorizationsDecoder json
+
+
+decodeAuthorizationsTestData : List ( String, Result String (List Authorization), Result String (List Authorization) )
+decodeAuthorizationsTestData =
+    [ ( "decodeAuthorizations"
+      , decodeAuthorizations
+            """
+           [ { "name": "GitHub",
+               "authorizationUri": "https://github.com/login/oauth/authorize",
+               "tokenUri": "https://github.com/login/oauth/access_token",
+               "apiUri": "https://api.github.com/",
+               "clientId": "xxx",
+               "redirectUri": "https://example.com/oath/",
+               "scopes": {"user": "user"}
+             },
+             { "comment": "Not using this yet",
+               "name": "Gmail",
+               "authorizationUri": "https://accounts.google.com/o/oauth2/auth",
+               "apiUri": "https://www.googleapis.com/gmail/v1/users/",
+               "tokenUri": "https://accounts.google.com/o/oauth2/token",
+               "clientId": "yyy.apps.googleusercontent.com",
+               "redirectUri": "https://example.com/oath/",
+               "scopes": {"readonly": "https://www.googleapis.com/auth/gmail.readonly"}
+             }
+           ]
+           """
+      , Ok
+            [ { name = "GitHub"
+              , authorizationUri = "https://github.com/login/oauth/authorize"
+              , tokenUri = "https://github.com/login/oauth/access_token"
+              , apiUri = "https://api.github.com/"
+              , clientId = "xxx"
+              , redirectUri = "https://example.com/oath/"
+              , scopes = Dict.fromList [ ( "user", "user" ) ]
+              }
+            ]
       )
     ]

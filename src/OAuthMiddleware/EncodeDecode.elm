@@ -277,9 +277,22 @@ type alias Authorization =
     { name : String
     , authorizationUri : String
     , tokenUri : String
+    , apiUri : String
     , clientId : String
     , redirectUri : String
     , scopes : Dict String String
+    }
+
+
+emptyAuthorization : Authorization
+emptyAuthorization =
+    { name = ""
+    , authorizationUri = ""
+    , tokenUri = ""
+    , apiUri = ""
+    , clientId = ""
+    , redirectUri = ""
+    , scopes = Dict.empty
     }
 
 
@@ -290,10 +303,11 @@ Usually used via `OAuthMiddleware.getAuthorization`.
 -}
 authorizationDecoder : Decoder Authorization
 authorizationDecoder =
-    JD.map6 Authorization
+    JD.map7 Authorization
         (JD.field "name" JD.string)
         (JD.field "authorizationUri" JD.string)
         (JD.field "tokenUri" JD.string)
+        (JD.field "apiUri" JD.string)
         (JD.field "clientId" JD.string)
         (JD.field "redirectUri" JD.string)
         (JD.field "scopes" <| JD.dict JD.string)
@@ -307,6 +321,7 @@ authorizationEncoder authorization =
         [ ( "name", JE.string authorization.name )
         , ( "authorizationUri", JE.string authorization.authorizationUri )
         , ( "tokenUri", JE.string authorization.tokenUri )
+        , ( "apiUri", JE.string authorization.apiUri )
         , ( "clientId", JE.string authorization.clientId )
         , ( "redirectUri", JE.string authorization.redirectUri )
         , ( "scopes"
@@ -324,7 +339,15 @@ Usually used via `OAuthMiddleware.getAuthorizations`.
 -}
 authorizationsDecoder : Decoder (List Authorization)
 authorizationsDecoder =
-    JD.list authorizationDecoder
+    JD.list
+        (JD.oneOf
+            [ JD.field "comment" JD.value
+                |> JD.andThen
+                    (\_ -> JD.succeed emptyAuthorization)
+            , authorizationDecoder
+            ]
+        )
+        |> JD.map (\l -> List.filter ((/=) emptyAuthorization) l)
 
 
 {-| Encode an `Authorization` list.
