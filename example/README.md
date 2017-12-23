@@ -46,7 +46,7 @@ Now you can run the example with `elm-reactor`:
     cd .../elm-oauth-middleware/example
     elm reactor -a oauth-client-dev.com
     
-Now aim your browser at http://oauth-client-dev.com:8000
+Now aim your browser at http://oauth-client-dev.com:8000/example.elm
 
 You can select a "Provider", and click "Login" to authenticate and get a token from your callback server. Then you can click "Get User" to send an API request for user information.
 
