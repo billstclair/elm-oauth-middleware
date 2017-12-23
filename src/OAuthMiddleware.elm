@@ -118,10 +118,13 @@ Your client secret is stored with the redirect server, and never leaves that ser
     { "name": "Gmail",
       "authorizationUri": "https://accounts.google.com/o/oauth2/auth",
       "tokenUri": "https://accounts.google.com/o/oauth2/token",
-      "clientId": "<Your OAuth clientid>
-      "redirectUri": "<Your redirect server Uri>"
+      "apiUri": "https://www.googleapis.com/gmail/v1/users/",
+      "clientId": "<Your OAuth clientid>",
+      "redirectUri": "<Your redirect server Uri>",
       "scopes": {"<Your scope name>": "<OAuth provider's scope name>"}
     }
+
+The example contains more information about this, and a sample authorizations file.
 
 -}
 getAuthorization : Bool -> String -> Http.Request Authorization
@@ -218,9 +221,7 @@ type TokenState
 
 {-| Parse a returned `ResponseToken` from a `Navigation.Location`.
 
-Note that the `scope` in the returned `TokenAndState` `ResponseToken` is not guaranteed to match what you requested. It will often be an empty list. The RFC 6749 [Authorization Code Grant](https://tools.ietf.org/html/rfc6749#section-4.1) flow does not provide scope to the token server, so it can't return them to you. Nor does the spec guarantee that you'll get all the scopes you requested in your call to `authorize`.
-
-Some OAuth token servers, e.g. GitHub's, DO return `scope`, even though the spec says they shouldn't. For those, the `OAuthMiddleware` server will return the scopes to your client application. But if you really need to know what you asked for, you need to encode that in your `state` (or browser local storage, via ports).
+Note that the `scope` in the returned `TokenAndState` `ResponseToken` is not guaranteed to match what you requested. The RFC 6749 [Authorization Code Grant](https://tools.ietf.org/html/rfc6749#section-4.1) flow does not specify a returned scope from the OAuth token server, so if your redirectUri server receives no scope, or an empty scope, it will send back the list of scopes you requested. The spec does not guarantee that you'll get all the scopes you requested in your call to `authorize`, so this may be incorrect. It appears that GitHub returns proper scopes, so they will be as granted in that case.
 
 -}
 receiveTokenAndState : Location -> TokenState

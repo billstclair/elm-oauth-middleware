@@ -73,7 +73,7 @@ type Msg
     | ReceiveConfig (Maybe String)
     | ProbeConfig Time
     | NewRequest Server.Http.Request
-    | ReceiveToken Server.Http.Id String (Maybe String) (Result Http.Error OAuth.ResponseToken)
+    | ReceiveToken Server.Http.Id String (List String) (Maybe String) (Result Http.Error OAuth.ResponseToken)
 
 
 init : ( Model, Cmd Msg )
@@ -185,7 +185,7 @@ update msg model =
         NewRequest request ->
             newRequest request model
 
-        ReceiveToken id redirectBackUri state result ->
+        ReceiveToken id redirectBackUri scope state result ->
             let
                 string =
                     case result of
@@ -197,7 +197,14 @@ update msg model =
 
                         Ok responseToken ->
                             ED.encodeResponseToken
-                                { responseToken | state = state }
+                                { responseToken
+                                    | scope =
+                                        if [] == responseToken.scope then
+                                            scope
+                                        else
+                                            responseToken.scope
+                                    , state = state
+                                }
 
                 base64 =
                     case Base64.encode string of
@@ -357,6 +364,7 @@ authRequest code b64State url request model =
                                         (ReceiveToken
                                             request.id
                                             redirectState.redirectBackUri
+                                            redirectState.scope
                                             redirectState.state
                                         )
                                         tokenRequest

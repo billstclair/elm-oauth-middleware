@@ -68,6 +68,9 @@ import OAuth.Decode as OD
 
 
 {-| The state sent to the `redirectUri`.
+
+This is created by `OAuthMiddleware.authorize` from the passed `TokenAuthorization`.
+
 -}
 type alias RedirectState =
     { clientId : String
