@@ -89,5 +89,3 @@ This is handled by the `adjustRequest` function in `OAuthTokenServer.elm` and by
 GitHub's documentaton of their token server's behavior is [here](https://developer.github.com/apps/building-oauth-apps/authorization-options-for-oauth-apps/#response).
 
 Here are links to IETF RFC 6749 section [4.1.3. Access Token Request](https://tools.ietf.org/html/rfc6749#section-4.1.3) and section [4.1.4. Access Token Response](https://tools.ietf.org/html/rfc6749#section-4.1.4).
-
--}
