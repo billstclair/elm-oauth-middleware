@@ -64,6 +64,7 @@ import Dict exposing (Dict)
 import Json.Decode as JD exposing (Decoder)
 import Json.Encode as JE exposing (Value)
 import OAuth
+import OAuth.Decode as OD
 
 
 {-| The state sent to the `redirectUri`.
@@ -250,69 +251,21 @@ responseTokenEncoder responseToken =
 ---
 
 
-{-| We're never going to see any GitHub style scopes on the client side,
-but I copied the server decoder anyway.
--}
-scopeDecoder : Decoder (List String)
-scopeDecoder =
-    JD.oneOf
-        [ JD.list JD.string
-        -- GitHub returns a comma-separated string, instead of a list of strings.
-        , JD.map (String.split ",") JD.string
-        ]
+{-| Decode the "response-token" query arg for the redirectBackUri.
 
+Changes the default by swapping `lenientScopeDecoder` for `scopeDecoder`.
 
-{-| Decode the "response-token" query arg for the redirectBackUri
+This isn't necessary on the client side, but is needed by the server for GitHub.
+
 -}
 responseTokenDecoder : Decoder OAuth.ResponseToken
 responseTokenDecoder =
-    JD.oneOf
-        [ JD.map5
-            (\token expiresIn refreshToken scope state ->
-                { token = token
-                , expiresIn = expiresIn
-                , refreshToken = refreshToken
-                , scope = Maybe.withDefault [] scope
-                , state = state
-                }
-            )
-            accessTokenDecoder
-            (JD.maybe <| JD.field "expires_in" JD.int)
-            refreshTokenDecoder
-            (JD.maybe <| JD.field "scope" scopeDecoder)
-            (JD.maybe <| JD.field "state" JD.string)
-        ]
-
-
-accessTokenDecoder : JD.Decoder OAuth.Token
-accessTokenDecoder =
-    let
-        mtoken =
-            JD.map2 makeToken
-                (JD.field "access_token" JD.string |> JD.map Just)
-                (JD.field "token_type" JD.string)
-
-        failUnless =
-            Maybe.map JD.succeed >> Maybe.withDefault (JD.fail "can't decode token")
-    in
-    JD.andThen failUnless mtoken
-
-
-refreshTokenDecoder : JD.Decoder (Maybe OAuth.Token)
-refreshTokenDecoder =
-    JD.map2 makeToken
-        (JD.maybe <| JD.field "refresh_token" JD.string)
-        (JD.field "token_type" JD.string)
-
-
-makeToken : Maybe String -> String -> Maybe OAuth.Token
-makeToken mtoken tokenType =
-    case ( mtoken, String.toLower tokenType ) of
-        ( Just token, "bearer" ) ->
-            Just <| OAuth.Bearer token
-
-        _ ->
-            Nothing
+    JD.map5 OD.makeResponseToken
+        OD.accessTokenDecoder
+        OD.expiresInDecoder
+        OD.refreshTokenDecoder
+        OD.lenientScopeDecoder
+        OD.stateDecoder
 
 
 {-| Authorization information to send to the redirect (callback) server.

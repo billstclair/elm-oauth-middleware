@@ -21,7 +21,9 @@ import Http
 import Json.Decode as JD
 import Json.Encode as JE
 import List.Extra as LE
-import OAuth
+import OAuth exposing (ResponseToken)
+import OAuth.AuthorizationCode
+import OAuth.Decode as OD exposing (AdjustRequest)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
 import OAuthMiddleware.ServerConfiguration
     exposing
@@ -30,7 +32,6 @@ import OAuthMiddleware.ServerConfiguration
         , configurationsDecoder
         , defaultLocalServerConfiguration
         )
-import OAuthTokenServer.Authenticate exposing (authenticate)
 import Platform
 import Server.Http
 import Time exposing (Time)
@@ -262,6 +263,18 @@ newRequest request model =
                   ]
 
 
+adjustRequest : AdjustRequest ResponseToken
+adjustRequest req =
+    let
+        headers =
+            Http.header "Accept" "application/json" :: req.headers
+
+        expect =
+            Http.expectJson ED.responseTokenDecoder
+    in
+    { req | headers = headers, expect = expect }
+
+
 tokenRequest : RedirectState -> String -> Model -> Result String (Http.Request OAuth.ResponseToken)
 tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code model =
     let
@@ -293,17 +306,20 @@ tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code mo
                         Err <| "https protocol required for redirect host: " ++ host
                     else
                         Ok <|
-                            authenticate
-                                { credentials =
-                                    { clientId = clientId
-                                    , secret = clientSecret
+                            OAuth.AuthorizationCode.authenticateWithOpts
+                                adjustRequest
+                            <|
+                                OAuth.AuthorizationCode
+                                    { credentials =
+                                        { clientId = clientId
+                                        , secret = clientSecret
+                                        }
+                                    , code = code
+                                    , redirectUri = redirectUri
+                                    , scope = scope
+                                    , state = Nothing --we already have this in our hand
+                                    , url = tokenUri
                                     }
-                                , code = code
-                                , redirectUri = redirectUri
-                                , scope = scope
-                                , state = Nothing --we already have this in our hand
-                                , url = tokenUri
-                                }
 
 
 authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )

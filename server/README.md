@@ -28,7 +28,7 @@ This requires Elm. You may want to do it on your local server, and then upload `
     npm start
 
 
-The server runs on port 3000. That number is wired in to `src/index.js`. You may not want to use that port for the outside world, so you may want to configure Apache or Nginx to reverse proxy port 80 for that port on some URL.
+By default, the server runs on port 3000, but you can change that in the configuration file. You may want to block that port to the outside world, and configure Apache or Nginx to reverse proxy port 80 for that port at some PATH.
 
 For example, here's the line in the Apache site file for my server:
 
@@ -55,12 +55,17 @@ The server is configured by a file named `config.json` in its `build` directory.
 
     [{"comment","Any configuration with a comment is ignored."
      },
+     {"port": 3000,
+      "configSamplePeriod": 2
+     },
      {"tokenUri": "https://example.com/oath/token",
       "clientId": "clientid",
       "clientSecret": "secret",
       "redirectBackHosts": ["https://example.com", "oauth-client-dev.com"]
      }
     ]
+    
+The `port` and `configSamplePeriod` object is optional, and may appear only once. It sets the TCP port to listen on, and the time between probes looking for updates to `config.json`. Both `port` and `configSamplePeriod` are optional, and default to the values shown above. If `configSamplePerios` is less than or equal to zero, the server will NOT probe for updates, and you'll have to stop and restart it to read an updated `config.json`.
 
 `tokenUri` and `clientId` are included in the `Authorization` fetched by `OAuthMiddleware.getAuthorization`. `redirectBackHosts` is a list of acceptable hosts for the `redirectUri` field in an `Authorization`. If a host name is prefixed with `https://`, then the incoming `redirectBackUri` must also be for the `https` protocol.
 
