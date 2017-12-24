@@ -80,6 +80,8 @@ type Msg
     | ReceiveUser (Result Http.Error Value)
 
 
+{-| GitHub requires the "User-Agent" header.
+-}
 userAgentHeader : Http.Header
 userAgentHeader =
     Http.header "User-Agent" "Xossbow"

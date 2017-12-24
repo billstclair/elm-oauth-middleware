@@ -1,4 +1,4 @@
-[![elm-package](https://img.shields.io/badge/elm-1.0.1-blue.svg)](http://package.elm-lang.org/packages/billstclair/elm-oauth-middleware/latest)
+[![elm-package](https://img.shields.io/badge/elm-1.0.2-blue.svg)](http://package.elm-lang.org/packages/billstclair/elm-oauth-middleware/latest)
 [![Build Status](https://travis-ci.org/billstclair/elm-oauth-middleware.svg?branch=master)](https://travis-ci.org/billstclair/elm-oauth-middleware)
 
 This package implements the client side of a complete OAuth [Authorization Code](https://tools.ietf.org/html/rfc6749#section-1.3.1) Grant Flow.

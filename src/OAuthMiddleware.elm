@@ -148,7 +148,7 @@ getAuthorizations useCache url =
 -}
 locationToRedirectBackUri : Location -> String
 locationToRedirectBackUri location =
-    location.protocol ++ location.host ++ location.pathname
+    location.protocol ++ "//" ++ location.host ++ location.pathname
 
 
 {-| Send an authorization request.
