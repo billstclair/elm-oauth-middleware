@@ -6,7 +6,8 @@
     "version": "1.0.2",
     "exposed-modules": [
         "OAuthMiddleware",
-        "OAuthMiddleware.EncodeDecode"
+        "OAuthMiddleware.EncodeDecode",
+        "OAuthMiddleWare.ResponseToken"
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {
@@ -16,8 +17,7 @@
         "elm/json": "1.0.0 <= v < 2.0.0",
         "elm/url": "1.0.0 <= v < 2.0.0",
         "truqu/elm-base64": "2.0.4 <= v < 3.0.0",
-        "truqu/elm-oauth2": "4.0.0 <= v < 5.0.0",
-        "sporto/erl": "13.0.1 <= v < 14.0.0"
+        "truqu/elm-oauth2": "4.0.0 <= v < 5.0.0"
     },
     "test-dependencies": {}
 }

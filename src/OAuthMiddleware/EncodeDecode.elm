@@ -53,7 +53,7 @@ import Dict exposing (Dict)
 import Json.Decode as JD exposing (Decoder)
 import Json.Encode as JE exposing (Value)
 import OAuth
-import OAuth.Decode as OD
+import OAuthMiddleware.ResponseToken as OD
 
 
 {-| The state sent to the `redirectUri`.
@@ -89,7 +89,7 @@ encodeRedirectState redirectState =
 {-| Decode the `ResponseToken` that is sent back to the `redirectUri`
 from the redirect server.
 -}
-decodeResponseToken : String -> Result String OAuth.ResponseToken
+decodeResponseToken : String -> Result String OD.ResponseToken
 decodeResponseToken json =
     JD.decodeString responseTokenDecoder json
 
@@ -97,7 +97,7 @@ decodeResponseToken json =
 {-| Encode the `ResponseToken` that is received by the redirect server
 from its call to `OAuth.AuthorizationCode.authenticate`.
 -}
-encodeResponseToken : OAuth.ResponseToken -> String
+encodeResponseToken : OD.ResponseToken -> String
 encodeResponseToken responseToken =
     JE.encode 0 <|
         responseTokenEncoder responseToken
@@ -174,10 +174,12 @@ redirectStateEncoder state =
 
 tokenEncoderFields : String -> OAuth.Token -> List ( String, Value )
 tokenEncoderFields field token =
+    let
+        s =
+            OAuth.tokenToString token |> String.dropLeft 7
+    in
     [ ( field
-      , case token of
-            OAuth.Bearer s ->
-                JE.string s
+      , JE.string s
       )
     , ( "token_type", JE.string "bearer" )
     ]
@@ -204,7 +206,7 @@ responseTokenErrorDecoder =
 
 {-| Encode the "response-token" query arg for the redirectBackUri
 -}
-responseTokenEncoder : OAuth.ResponseToken -> Value
+responseTokenEncoder : OD.ResponseToken -> Value
 responseTokenEncoder responseToken =
     List.concat
         [ tokenEncoderFields "access_token" responseToken.token
@@ -250,7 +252,7 @@ Changes the default by swapping `lenientScopeDecoder` for `scopeDecoder`.
 This isn't necessary on the client side, but is needed by the server for GitHub.
 
 -}
-responseTokenDecoder : Decoder OAuth.ResponseToken
+responseTokenDecoder : Decoder OD.ResponseToken
 responseTokenDecoder =
     JD.map5 OD.makeResponseToken
         OD.accessTokenDecoder
