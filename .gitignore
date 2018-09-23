@@ -1,3 +1,4 @@
 npm-debug.log
 elm-stuff
 server/build/*.js
+docs.json

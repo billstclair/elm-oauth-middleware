@@ -10,19 +10,11 @@
 ----------------------------------------------------------------------
 
 
-module OAuthMiddleware
-    exposing
-        ( Authorization
-        , ResponseToken
-        , TokenAuthorization
-        , TokenState(..)
-        , authorize
-        , getAuthorization
-        , getAuthorizations
-        , locationToRedirectBackUri
-        , receiveTokenAndState
-        , use
-        )
+module OAuthMiddleware exposing
+    ( Authorization, TokenAuthorization, ResponseToken, TokenState(..)
+    , getAuthorization, getAuthorizations
+    , locationToRedirectBackUri, authorize, receiveTokenAndState, use
+    )
 
 {-| Client side of OAuth Authorization Code Grant Flow.
 
@@ -90,6 +82,7 @@ getNoCache useCache url decoder =
         , headers =
             if useCache then
                 []
+
             else
                 [ Http.header
                     "Cache-Control"

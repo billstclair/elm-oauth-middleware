@@ -10,7 +10,7 @@
 ----------------------------------------------------------------------
 
 
-module Main exposing (..)
+module Main exposing (Api, Model, Msg(..), apis, getUser, init, lookupProvider, main, providerOption, providerSelect, update, userAgentHeader, view)
 
 import Dict exposing (Dict)
 import Html
@@ -141,44 +141,47 @@ init location =
                 NoToken ->
                     ( Nothing, Nothing, Nothing )
     in
-    { authorization = Nothing
-    , token = token
-    , state = state
-    , msg = msg
-    , replyType = "Token"
-    , reply =
-        case token of
-            Nothing ->
-                Nothing
+    ( { authorization = Nothing
+      , token = token
+      , state = state
+      , msg = msg
+      , replyType = "Token"
+      , reply =
+            case token of
+                Nothing ->
+                    Nothing
 
-            Just tok ->
-                Just <| responseTokenEncoder tok
-    , redirectBackUri = locationToRedirectBackUri location
-    , authorizations = Dict.empty
-    , provider =
-        case state of
-            Just p ->
-                p
+                Just tok ->
+                    Just <| responseTokenEncoder tok
+      , redirectBackUri = locationToRedirectBackUri location
+      , authorizations = Dict.empty
+      , provider =
+            case state of
+                Just p ->
+                    p
 
-            Nothing ->
-                "Gmail"
-    , tokenAuthorization = Nothing
-    , api = Nothing
-    }
-        ! [ Http.send ReceiveAuthorizations <|
-                getAuthorizations False "authorizations.json"
-          , Navigation.modifyUrl "#"
-          ]
+                Nothing ->
+                    "Gmail"
+      , tokenAuthorization = Nothing
+      , api = Nothing
+      }
+    , Cmd.batch
+        [ Http.send ReceiveAuthorizations <|
+            getAuthorizations False "authorizations.json"
+        , Navigation.modifyUrl "#"
+        ]
+    )
 
 
 getUser : Model -> ( Model, Cmd Msg )
 getUser model =
     case model.token of
         Nothing ->
-            { model
+            ( { model
                 | msg = Just "You must login before getting user information."
-            }
-                ! []
+              }
+            , Cmd.none
+            )
 
         Just token ->
             case ( model.api, model.authorization ) of
@@ -198,11 +201,14 @@ getUser model =
                                 , withCredentials = False
                                 }
                     in
-                    model ! [ Http.send ReceiveUser req ]
+                    ( model
+                    , Http.send ReceiveUser req
+                    )
 
                 _ ->
-                    { model | msg = Just "No known API." }
-                        ! []
+                    ( { model | msg = Just "No known API." }
+                    , Cmd.none
+                    )
 
 
 lookupProvider : Model -> Model
@@ -256,13 +262,16 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ReceiveLocation _ ->
-            model ! []
+            ( model
+            , Cmd.none
+            )
 
         ReceiveAuthorizations result ->
             case result of
                 Err err ->
-                    { model | msg = Just <| toString err }
-                        ! []
+                    ( { model | msg = Just <| toString err }
+                    , Cmd.none
+                    )
 
                 Ok authorizations ->
                     let
@@ -278,7 +287,7 @@ update msg model =
                                 _ ->
                                     ( model.replyType, model.reply )
                     in
-                    lookupProvider
+                    ( lookupProvider
                         { model
                             | authorizations =
                                 Dict.fromList <|
@@ -286,22 +295,26 @@ update msg model =
                             , replyType = replyType
                             , reply = reply
                         }
-                        ! []
+                    , Cmd.none
+                    )
 
         ChangeProvider provider ->
-            lookupProvider
+            ( lookupProvider
                 { model | provider = provider }
-                ! []
+            , Cmd.none
+            )
 
         Login ->
             case model.tokenAuthorization of
                 Nothing ->
-                    { model | msg = Just "No provider selected." }
-                        ! []
+                    ( { model | msg = Just "No provider selected." }
+                    , Cmd.none
+                    )
 
                 Just authorization ->
-                    model
-                        ! [ authorize authorization ]
+                    ( model
+                    , authorize authorization
+                    )
 
         GetUser ->
             getUser model
@@ -309,19 +322,21 @@ update msg model =
         ReceiveUser result ->
             case result of
                 Err err ->
-                    { model
+                    ( { model
                         | reply = Nothing
                         , msg = Just <| toString err
-                    }
-                        ! []
+                      }
+                    , Cmd.none
+                    )
 
                 Ok reply ->
-                    { model
+                    ( { model
                         | replyType = "API Response"
                         , reply = Just reply
                         , msg = Nothing
-                    }
-                        ! []
+                      }
+                    , Cmd.none
+                    )
 
 
 providerOption : String -> String -> Html Msg
@@ -346,7 +361,7 @@ providerSelect model =
 view : Model -> Html Msg
 view model =
     div
-        [ style [ ( "margin-left", "3em" ) ]
+        [ style "margin-left" "3em"
         ]
         [ h2 [] [ text "OAuthMiddleware Example" ]
         , p []

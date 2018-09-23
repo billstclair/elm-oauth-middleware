@@ -10,18 +10,17 @@
 ----------------------------------------------------------------------
 
 
-module OAuthMiddleware.ServerConfiguration
-    exposing
-        ( Configurations
-        , LocalServerConfiguration
-        , RedirectBackHost
-        , RemoteServerConfiguration
-        , configurationsDecoder
-        , configurationsEncoder
-        , defaultLocalServerConfiguration
-        , redirectBackHostDecoder
-        , redirectBackHostEncoder
-        )
+module OAuthMiddleware.ServerConfiguration exposing
+    ( Configurations
+    , LocalServerConfiguration
+    , RedirectBackHost
+    , RemoteServerConfiguration
+    , configurationsDecoder
+    , configurationsEncoder
+    , defaultLocalServerConfiguration
+    , redirectBackHostDecoder
+    , redirectBackHostEncoder
+    )
 
 import Erl
 import Json.Decode as JD exposing (Decoder)
@@ -123,7 +122,7 @@ splitLocalRemote configs =
                         loop rest (loc :: local) remote
 
                     (Remote rem) :: rest ->
-                        loop rest local (rem :: remote)
+                        loop rest local ((\dividend divisor -> remainderBy divisor dividend) :: remote)
 
                     _ :: rest ->
                         loop rest local remote
@@ -200,6 +199,7 @@ redirectBackHostEncoder host =
         https =
             if host.ssl then
                 "https://"
+
             else
                 ""
     in

@@ -10,29 +10,18 @@
 ----------------------------------------------------------------------
 
 
-module OAuthMiddleware.EncodeDecode
-    exposing
-        ( Authorization
-        , RedirectState
-        , ResponseTokenError
-        , authorizationDecoder
-        , authorizationEncoder
-        , authorizationsDecoder
-        , authorizationsEncoder
-        , decodeRedirectState
-        , decodeResponseToken
-        , decodeResponseTokenError
-        , encodeRedirectState
-        , encodeResponseToken
-        , encodeResponseTokenError
-        , nullableStringEncoder
-        , redirectStateDecoder
-        , redirectStateEncoder
-        , responseTokenDecoder
-        , responseTokenEncoder
-        , responseTokenErrorDecoder
-        , responseTokenErrorEncoder
-        )
+module OAuthMiddleware.EncodeDecode exposing
+    ( Authorization, RedirectState, ResponseTokenError
+    , encodeRedirectState, decodeRedirectState
+    , encodeResponseToken, decodeResponseToken
+    , encodeResponseTokenError, decodeResponseTokenError
+    , authorizationsDecoder, authorizationsEncoder
+    , authorizationDecoder, authorizationEncoder
+    , redirectStateDecoder, redirectStateEncoder
+    , responseTokenDecoder, responseTokenEncoder
+    , responseTokenErrorDecoder, responseTokenErrorEncoder
+    , nullableStringEncoder
+    )
 
 {-| JSON Encoders and Decoders for the `OAuthMiddleware` module.
 
