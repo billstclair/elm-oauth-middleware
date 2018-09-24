@@ -1,15 +1,11 @@
 sudo: false
 
-cache:
-  directories:
-    - .elm
-
 os:
   - linux
 
 env:
   matrix:
-    - ELM_VERSION=0.19 TARGET_NODE_VERSION=node ELM_HOME=.elm
+    - ELM_VERSION=0.19 TARGET_NODE_VERSION=node
 
 install:
   - nvm install $TARGET_NODE_VERSION
