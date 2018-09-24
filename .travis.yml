@@ -16,4 +16,4 @@ install:
   - npm install -g elm-test@beta
 
 script:
-  - yes | elm make && elm-test
+  - elm make && elm-test
