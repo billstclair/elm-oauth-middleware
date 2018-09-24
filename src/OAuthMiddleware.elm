@@ -37,11 +37,12 @@ import Base64
 import Http
 import Json.Decode as JD exposing (Decoder)
 import Json.Encode as JE exposing (Value)
-import Navigation exposing (Location)
 import OAuth
-import OAuth.AuthorizationCode
+import OAuth.AuthorizationCode as AuthorizationCode
 import OAuthMiddleware.EncodeDecode as ED
+import OAuthMiddleware.ResponseToken as ResponseToken
 import Task exposing (Task)
+import Url exposing (Url)
 
 
 {-| Configuration for sending a request to the authorization server.
@@ -137,11 +138,31 @@ getAuthorizations useCache url =
     getNoCache useCache url ED.authorizationsDecoder
 
 
-{-| Convert a `Navigation.Location` into a string suitable for the `redirectBackUri` in a `TokenAuthorization`.
+protocolString : Url.Protocol -> String
+protocolString protocol =
+    case protocol of
+        Url.Http ->
+            "http:"
+
+        Url.Https ->
+            "https:"
+
+
+{-| Convert a `Url.Url` into a string suitable for the `redirectBackUri` in a `TokenAuthorization`.
 -}
-locationToRedirectBackUri : Location -> String
-locationToRedirectBackUri location =
-    location.protocol ++ "//" ++ location.host ++ location.pathname
+locationToRedirectBackUri : Url -> String
+locationToRedirectBackUri url =
+    protocolString url.protocol
+        ++ "//"
+        ++ url.host
+        ++ (case url.port_ of
+                Nothing ->
+                    ""
+
+                Just p ->
+                    ":" ++ String.fromInt p
+           )
+        ++ url.path
 
 
 {-| Send an authorization request.
@@ -151,7 +172,7 @@ This will cause the authorization server to ask the user to login. If successful
 The returned `Cmd` will cause the user's browser to navigate away from your app for authentication and token fetching by the `redirectUri`. The redirect server will navigate back with query args that you can process with `receiveTokenAndState`.
 
 -}
-authorize : TokenAuthorization -> Cmd msg
+authorize : TokenAuthorization -> Maybe Url
 authorize { authorization, redirectBackUri, scope, state } =
     let
         { authorizationUri, tokenUri, clientId, redirectUri } =
@@ -168,31 +189,30 @@ authorize { authorization, redirectBackUri, scope, state } =
                 }
 
         base64 =
-            case Base64.encode wireState of
-                Ok b64 ->
-                    b64
-
-                Err _ ->
-                    -- Can't happen
-                    ""
+            Base64.encode wireState
     in
-    OAuth.AuthorizationCode.authorize
-        { clientId = clientId
-        , redirectUri = redirectUri
-        , responseType = OAuth.Code
-        , scope = scope
-        , state = Just base64
-        , url = authorizationUri
-        }
+    case ( Url.fromString authorizationUri, Url.fromString redirectUri ) of
+        ( Just authorizationUrl, Just redirectUrl ) ->
+            Just <|
+                AuthorizationCode.makeAuthUrl
+                    { clientId = clientId
+                    , url = authorizationUrl
+                    , redirectUri = redirectUrl
+                    , scope = scope
+                    , state = Just base64
+                    }
+
+        _ ->
+            Nothing
 
 
 {-| An alias for `OAuth.ResponseToken`.
 -}
 type alias ResponseToken =
-    OAuth.ResponseToken
+    ResponseToken.ResponseToken
 
 
-{-| The result of parsing a Navigation.Location that may have come from
+{-| The result of parsing a Url.Url that may have come from
 a redirect from a callback server, as implemented in the `server` directory
 of this project.
 
@@ -212,33 +232,34 @@ type TokenState
     | NoToken
 
 
-{-| Parse a returned `ResponseToken` from a `Navigation.Location`.
+{-| Parse a returned `ResponseToken` from a `Url.Url`.
 
 Note that the `scope` in the returned `TokenAndState` `ResponseToken` is not guaranteed to match what you requested. The RFC 6749 [Authorization Code Grant](https://tools.ietf.org/html/rfc6749#section-4.1) flow does not specify a returned scope from the OAuth token server, so if your redirectUri server receives no scope, or an empty scope, it will send back the list of scopes you requested. The spec does not guarantee that you'll get all the scopes you requested in your call to `authorize`, so this may be incorrect. It appears that GitHub returns proper scopes, so they will be as granted in that case.
 
 -}
-receiveTokenAndState : Location -> TokenState
-receiveTokenAndState location =
-    let
-        base64 =
-            String.dropLeft 1 location.hash
-    in
-    case Base64.decode base64 of
-        Err _ ->
+receiveTokenAndState : Url -> TokenState
+receiveTokenAndState url =
+    case url.fragment of
+        Nothing ->
             NoToken
 
-        Ok reply ->
-            case ED.decodeResponseToken reply of
-                Ok token ->
-                    TokenAndState token token.state
-
+        Just base64 ->
+            case Base64.decode base64 of
                 Err _ ->
-                    case ED.decodeResponseTokenError reply of
-                        Ok error ->
-                            TokenErrorAndState error.err error.state
+                    NoToken
+
+                Ok reply ->
+                    case ED.decodeResponseToken reply of
+                        Ok token ->
+                            TokenAndState token token.state
 
                         Err _ ->
-                            NoToken
+                            case ED.decodeResponseTokenError reply of
+                                Ok error ->
+                                    TokenErrorAndState error.err error.state
+
+                                Err _ ->
+                                    NoToken
 
 
 {-| Use a token to add authenticatication to a request header.
@@ -248,4 +269,4 @@ A thin wrapper around `OAuth.use`.
 -}
 use : ResponseToken -> List Http.Header -> List Http.Header
 use responseToken headers =
-    OAuth.use responseToken.token headers
+    OAuth.useToken responseToken.token headers

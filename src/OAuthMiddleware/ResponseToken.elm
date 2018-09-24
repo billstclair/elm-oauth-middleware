@@ -12,8 +12,8 @@
 
 module OAuthMiddleware.ResponseToken exposing
     ( ResponseToken
-    , responseDecoder, expiresInDecoder, scopeDecoder, lenientScopeDecoder, stateDecoder, accessTokenDecoder, refreshTokenDecoder
-    , makeToken, makeResponseToken
+    , responseDecoder, stateDecoder
+    , makeResponseToken
     )
 
 {-| This module revives the `ResponseToken` type.
@@ -28,7 +28,7 @@ module OAuthMiddleware.ResponseToken exposing
 
 ## Json Decoders
 
-@docs responseDecoder, expiresInDecoder, scopeDecoder, lenientScopeDecoder, stateDecoder, accessTokenDecoder, refreshTokenDecoder
+@docs responseDecoder, stateDecoder
 
 
 ## Constructors
@@ -39,6 +39,7 @@ module OAuthMiddleware.ResponseToken exposing
 
 import Json.Decode as Json
 import OAuth exposing (..)
+import OAuth.AuthorizationCode as AC
 
 
 {-| The response obtained as a result of an authentication (implicit or not)
@@ -92,37 +93,11 @@ For instance,
 responseDecoder : Json.Decoder ResponseToken
 responseDecoder =
     Json.map5 makeResponseToken
-        accessTokenDecoder
-        expiresInDecoder
-        refreshTokenDecoder
-        scopeDecoder
+        AC.defaultTokenDecoder
+        AC.defaultExpiresInDecoder
+        AC.defaultRefreshTokenDecoder
+        AC.defaultScopeDecoder
         stateDecoder
-
-
-{-| Json decoder for an expire timestamp
--}
-expiresInDecoder : Json.Decoder (Maybe Int)
-expiresInDecoder =
-    Json.maybe <| Json.field "expires_in" Json.int
-
-
-{-| Json decoder for a scope
--}
-scopeDecoder : Json.Decoder (Maybe (List String))
-scopeDecoder =
-    Json.maybe <| Json.field "scope" (Json.list Json.string)
-
-
-{-| Json decoder for a scope, allowing comma- or space-separated scopes
--}
-lenientScopeDecoder : Json.Decoder (Maybe (List String))
-lenientScopeDecoder =
-    Json.maybe <|
-        Json.field "scope" <|
-            Json.oneOf
-                [ Json.list Json.string
-                , Json.map (String.split ",") Json.string
-                ]
 
 
 {-| Json decoder for a state
@@ -132,50 +107,13 @@ stateDecoder =
     Json.maybe <| Json.field "state" Json.string
 
 
-{-| Json decoder for an access token
--}
-accessTokenDecoder : Json.Decoder Token
-accessTokenDecoder =
-    let
-        mtoken =
-            Json.map2 makeToken
-                (Json.field "access_token" Json.string |> Json.map Just)
-                (Json.field "token_type" Json.string)
-
-        failUnless =
-            Maybe.map Json.succeed >> Maybe.withDefault (Json.fail "can't decode token")
-    in
-    Json.andThen failUnless mtoken
-
-
-{-| Json decoder for a refresh token
--}
-refreshTokenDecoder : Json.Decoder (Maybe Token)
-refreshTokenDecoder =
-    Json.map2 makeToken
-        (Json.maybe <| Json.field "refresh_token" Json.string)
-        (Json.field "token_type" Json.string)
-
-
 {-| Create a ResponseToken record from various parameters
 -}
-makeResponseToken : Token -> Maybe Int -> Maybe Token -> Maybe (List String) -> Maybe String -> ResponseToken
+makeResponseToken : Token -> Maybe Int -> Maybe Token -> List String -> Maybe String -> ResponseToken
 makeResponseToken token expiresIn refreshToken scope state =
     { token = token
     , expiresIn = expiresIn
     , refreshToken = refreshToken
-    , scope = Maybe.withDefault [] scope
+    , scope = scope
     , state = state
     }
-
-
-{-| Create a Token from a value and token type. Note that only bearer token are supported
--}
-makeToken : Maybe String -> String -> Maybe Token
-makeToken mtoken tokenType =
-    case ( mtoken, String.toLower tokenType ) of
-        ( Just token, "bearer" ) ->
-            tokenFromString ("Bearer " ++ token)
-
-        _ ->
-            Nothing

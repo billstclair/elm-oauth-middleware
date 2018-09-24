@@ -71,11 +71,21 @@ type alias RedirectState =
     }
 
 
+decodeString : Decoder a -> String -> Result String a
+decodeString decoder string =
+    case JD.decodeString decoder string of
+        Ok a ->
+            Ok a
+
+        Err error ->
+            Err <| JD.errorToString error
+
+
 {-| Decode the state encoded by `encodeRedirectState`.
 -}
 decodeRedirectState : String -> Result String RedirectState
 decodeRedirectState json =
-    JD.decodeString redirectStateDecoder json
+    decodeString redirectStateDecoder json
 
 
 {-| Encode the redirectBackUri and user state for the authorization server.
@@ -91,7 +101,7 @@ from the redirect server.
 -}
 decodeResponseToken : String -> Result String OD.ResponseToken
 decodeResponseToken json =
-    JD.decodeString responseTokenDecoder json
+    decodeString responseTokenDecoder json
 
 
 {-| Encode the `ResponseToken` that is received by the redirect server
@@ -117,7 +127,7 @@ type alias ResponseTokenError =
 -}
 decodeResponseTokenError : String -> Result String ResponseTokenError
 decodeResponseTokenError json =
-    JD.decodeString responseTokenErrorDecoder json
+    decodeString responseTokenErrorDecoder json
 
 
 {-| Encode the `ResponseTokenError` that may be sent back to the
@@ -166,7 +176,7 @@ redirectStateEncoder state =
         [ ( "clientId", JE.string state.clientId )
         , ( "tokenUri", JE.string state.tokenUri )
         , ( "redirectUri", JE.string state.redirectUri )
-        , ( "scope", JE.list <| List.map JE.string state.scope )
+        , ( "scope", JE.list JE.string state.scope )
         , ( "redirectBackUri", JE.string state.redirectBackUri )
         , ( "state", nullableStringEncoder state.state )
         ]
@@ -227,7 +237,7 @@ responseTokenEncoder responseToken =
                 []
 
             scope ->
-                [ ( "scope", JE.list <| List.map JE.string scope ) ]
+                [ ( "scope", JE.list JE.string scope ) ]
         , case responseToken.state of
             Nothing ->
                 []
@@ -348,4 +358,4 @@ authorizationsDecoder =
 -}
 authorizationsEncoder : List Authorization -> Value
 authorizationsEncoder authorizations =
-    JE.list <| List.map authorizationEncoder authorizations
+    JE.list authorizationEncoder authorizations
