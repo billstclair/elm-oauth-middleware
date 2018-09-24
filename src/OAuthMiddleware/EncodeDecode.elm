@@ -191,7 +191,7 @@ tokenEncoderFields field token =
     [ ( field
       , JE.string s
       )
-    , ( "token_type", JE.string "bearer" )
+    , ( "token_type", JE.string "Bearer" )
     ]
 
 
@@ -264,12 +264,7 @@ This isn't necessary on the client side, but is needed by the server for GitHub.
 -}
 responseTokenDecoder : Decoder OD.ResponseToken
 responseTokenDecoder =
-    JD.map5 OD.makeResponseToken
-        OD.accessTokenDecoder
-        OD.expiresInDecoder
-        OD.refreshTokenDecoder
-        OD.lenientScopeDecoder
-        OD.stateDecoder
+    OD.responseTokenDecoder
 
 
 {-| Authorization information to send to the redirect (callback) server.

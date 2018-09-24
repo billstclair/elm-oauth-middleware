@@ -22,9 +22,9 @@ module OAuthMiddleware.ServerConfiguration exposing
     , redirectBackHostEncoder
     )
 
-import Erl
 import Json.Decode as JD exposing (Decoder)
 import Json.Encode as JE exposing (Value)
+import Url
 
 
 type alias RedirectBackHost =
@@ -62,23 +62,62 @@ emptyConfig =
     }
 
 
-parseRedirectBackHost : String -> RedirectBackHost
+parseRedirectBackHost : String -> Maybe RedirectBackHost
 parseRedirectBackHost string =
     let
-        url =
-            Erl.parse string
+        maybeUrl =
+            case Url.fromString string of
+                Nothing ->
+                    case Url.fromString <| "http://" ++ string of
+                        Nothing ->
+                            Nothing
 
-        host =
-            String.join "." url.host
+                        x ->
+                            x
+
+                x ->
+                    x
     in
-    { host = host
-    , ssl = url.protocol == "https"
-    }
+    case maybeUrl of
+        Nothing ->
+            Nothing
+
+        Just url ->
+            let
+                host =
+                    url.host
+
+                colonPort =
+                    case url.port_ of
+                        Nothing ->
+                            ""
+
+                        Just p ->
+                            ":" ++ String.fromInt p
+
+                authority =
+                    host ++ colonPort
+            in
+            Just
+                { host = authority
+                , ssl = url.protocol == Url.Https
+                }
 
 
 redirectBackHostDecoder : Decoder RedirectBackHost
 redirectBackHostDecoder =
-    JD.string |> JD.andThen (JD.succeed << parseRedirectBackHost)
+    JD.string
+        |> JD.andThen
+            (\hostUri ->
+                case parseRedirectBackHost hostUri of
+                    Just host ->
+                        JD.succeed host
+
+                    Nothing ->
+                        JD.fail <|
+                            "Failed to parse redirect back host: "
+                                ++ hostUri
+            )
 
 
 defaultHttpPort : Int
@@ -112,20 +151,19 @@ type alias Configurations =
 splitLocalRemote : List ServerConfiguration -> ( List LocalServerConfiguration, List RemoteServerConfiguration )
 splitLocalRemote configs =
     let
-        loop =
-            \configs local remote ->
-                case configs of
-                    [] ->
-                        ( List.reverse local, List.reverse remote )
+        loop confs local remote =
+            case confs of
+                [] ->
+                    ( List.reverse local, List.reverse remote )
 
-                    (Local loc) :: rest ->
-                        loop rest (loc :: local) remote
+                (Local loc) :: rest ->
+                    loop rest (loc :: local) remote
 
-                    (Remote rem) :: rest ->
-                        loop rest local ((\dividend divisor -> remainderBy divisor dividend) :: remote)
+                (Remote remo) :: rest ->
+                    loop rest local (remo :: remote)
 
-                    _ :: rest ->
-                        loop rest local remote
+                _ :: rest ->
+                    loop rest local remote
     in
     loop configs [] []
 
@@ -138,7 +176,7 @@ serverConfigurationsToConfigurations configs =
     in
     case locals of
         _ :: _ :: _ ->
-            JD.fail "Multiple local configuations."
+            JD.fail "Multiple local configurations."
 
         _ ->
             JD.succeed
@@ -187,10 +225,9 @@ serverConfigurationDecoder =
 
 configurationsEncoder : Configurations -> Value
 configurationsEncoder configs =
-    JE.list
-        (localConfigurationEncoder configs.local
-            :: List.map remoteConfigurationEncoder configs.remote
-        )
+    localConfigurationEncoder configs.local
+        :: List.map remoteConfigurationEncoder configs.remote
+        |> JE.list identity
 
 
 redirectBackHostEncoder : RedirectBackHost -> Value
@@ -221,6 +258,6 @@ remoteConfigurationEncoder config =
         , ( "clientId", JE.string config.clientId )
         , ( "clientSecret", JE.string config.clientSecret )
         , ( "redirectBackHosts"
-          , JE.list <| List.map redirectBackHostEncoder config.redirectBackHosts
+          , JE.list redirectBackHostEncoder config.redirectBackHosts
           )
         ]

@@ -5,9 +5,14 @@ import Expect exposing (Expectation)
 import Json.Decode as JD exposing (Decoder, Value)
 import List
 import Maybe exposing (withDefault)
-import OAuth exposing (ResponseToken, Token(..))
+import OAuth exposing (Token)
 import OAuthMiddleware exposing (Authorization)
-import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState, ResponseTokenError)
+import OAuthMiddleware.EncodeDecode as ED
+    exposing
+        ( RedirectState
+        , ResponseTokenError
+        )
+import OAuthMiddleware.ResponseToken exposing (ResponseToken)
 import OAuthMiddleware.ServerConfiguration as SC
     exposing
         ( Configurations
@@ -31,6 +36,7 @@ maybeLog : String -> a -> a
 maybeLog label value =
     if enableLogging then
         log label value
+
     else
         value
 
@@ -59,7 +65,7 @@ expectResult sb was =
                     Expect.true "You shouldn't ever see this." True
 
                 Ok _ ->
-                    Expect.false (toString err) True
+                    Expect.false (Debug.toString err) True
 
         Ok wasv ->
             case sb of
@@ -79,18 +85,38 @@ doSbWasTest ( name, was, sb ) =
 
 
 doEncodeTest : ( String, a -> Result String a, a ) -> Test
-doEncodeTest ( name, encodeDecode, a ) =
+doEncodeTest ( name, ed, a ) =
     test name
         (\_ ->
-            expectResult (Ok a) (encodeDecode a)
+            expectResult (Ok a) (ed a)
         )
+
+
+decodeValue : Decoder a -> Value -> Result String a
+decodeValue decoder value =
+    case JD.decodeValue decoder value of
+        Ok a ->
+            Ok a
+
+        Err error ->
+            Err <| JD.errorToString error
+
+
+decodeString : Decoder a -> String -> Result String a
+decodeString decoder string =
+    case JD.decodeString decoder string of
+        Ok a ->
+            Ok a
+
+        Err error ->
+            Err <| JD.errorToString error
 
 
 encodeDecode : (a -> Value) -> JD.Decoder a -> a -> Result String a
 encodeDecode encoder decoder a =
     encoder a
         -- |> Debug.log "value"
-        |> JD.decodeValue decoder
+        |> decodeValue decoder
 
 
 encodeDecodeRedirectState : RedirectState -> Result String RedirectState
@@ -119,8 +145,8 @@ encodeDecodeConfigurations =
 
 
 insertEncodeDecode : (a -> Result String a) -> ( String, a ) -> ( String, a -> Result String a, a )
-insertEncodeDecode encodeDecode ( name, data ) =
-    ( name, encodeDecode, data )
+insertEncodeDecode ed ( name, data ) =
+    ( name, ed, data )
 
 
 redirectStateTestData : List ( String, RedirectState -> Result String RedirectState, RedirectState )
@@ -138,26 +164,36 @@ redirectStateTestData =
         |> List.map (insertEncodeDecode encodeDecodeRedirectState)
 
 
+bearer : String -> Maybe Token
+bearer str =
+    OAuth.tokenFromString <| "Bearer " ++ str
+
+
 responseTokenTestData : List ( String, ResponseToken -> Result String ResponseToken, ResponseToken )
 responseTokenTestData =
-    [ ( "ResponseToken 1"
-      , { expiresIn = Nothing
-        , refreshToken = Nothing
-        , scope = []
-        , state = Nothing
-        , token = Bearer "foo"
-        }
-      )
-    , ( "ResponseToken 2"
-      , { expiresIn = Just 1000
-        , refreshToken = Just <| Bearer "bar"
-        , scope = [ "read", "write" ]
-        , state = Just "What would yomama say?"
-        , token = Bearer "bletch"
-        }
-      )
-    ]
-        |> List.map (insertEncodeDecode encodeDecodeResponseToken)
+    case ( bearer "foo", bearer "bar", bearer "bletch" ) of
+        ( Just foo, Just bar, Just bletch ) ->
+            [ ( "ResponseToken 1"
+              , { expiresIn = Nothing
+                , refreshToken = Nothing
+                , scope = []
+                , state = Nothing
+                , token = foo
+                }
+              )
+            , ( "ResponseToken 2"
+              , { expiresIn = Just 1000
+                , refreshToken = Just bar
+                , scope = [ "read", "write" ]
+                , state = Just "What would yomama say?"
+                , token = bletch
+                }
+              )
+            ]
+                |> List.map (insertEncodeDecode encodeDecodeResponseToken)
+
+        _ ->
+            Debug.todo "Can't make tokens"
 
 
 responseTokenErrorTestData : List ( String, ResponseTokenError -> Result String ResponseTokenError, ResponseTokenError )
@@ -229,7 +265,7 @@ configurationTestData =
 
 decodeRedirectBackHost : String -> Result String RedirectBackHost
 decodeRedirectBackHost json =
-    JD.decodeString SC.redirectBackHostDecoder json
+    decodeString SC.redirectBackHostDecoder json
 
 
 redirectBackHostTestData : List ( String, Result String RedirectBackHost, Result String RedirectBackHost )
@@ -251,7 +287,7 @@ redirectBackHostTestData =
 
 decodeConfigurations : String -> Result String Configurations
 decodeConfigurations json =
-    JD.decodeString SC.configurationsDecoder json
+    decodeString SC.configurationsDecoder json
 
 
 decodeConfigurationsTestData : List ( String, Result String Configurations, Result String Configurations )
@@ -314,7 +350,7 @@ decodeConfigurationsTestData =
 
 decodeAuthorizations : String -> Result String (List Authorization)
 decodeAuthorizations json =
-    JD.decodeString ED.authorizationsDecoder json
+    decodeString ED.authorizationsDecoder json
 
 
 decodeAuthorizationsTestData : List ( String, Result String (List Authorization), Result String (List Authorization) )

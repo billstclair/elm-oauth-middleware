@@ -12,7 +12,7 @@
 
 module OAuthMiddleware.ResponseToken exposing
     ( ResponseToken
-    , responseDecoder, stateDecoder
+    , responseTokenDecoder, stateDecoder
     , makeResponseToken
     )
 
@@ -28,7 +28,7 @@ module OAuthMiddleware.ResponseToken exposing
 
 ## Json Decoders
 
-@docs responseDecoder, stateDecoder
+@docs responseTokenDecoder, stateDecoder
 
 
 ## Constructors
@@ -69,29 +69,10 @@ type alias ResponseToken =
     }
 
 
-{-| Json decoder for a response. You may provide a custom response decoder using other decoders
-from this module, or some of your own craft.
-
-For instance,
-
-    myScopeDecoder : Json.Decoder (Maybe (List String))
-    myScopeDecoder =
-        Json.maybe <|
-            Json.oneOf
-                [ Json.field "scope" (Json.map (String.split ",") Json.string) ]
-
-    myResponseDecoder : Json.Decoder ResponseToken
-    myResponseDecoder =
-        Json.map5 makeResponseToken
-            accessTokenDecoder
-            expiresInDecoder
-            refreshTokenDecoder
-            myScopeDecoder
-            stateDecoder
-
+{-| Json decoder for a response.
 -}
-responseDecoder : Json.Decoder ResponseToken
-responseDecoder =
+responseTokenDecoder : Json.Decoder ResponseToken
+responseTokenDecoder =
     Json.map5 makeResponseToken
         AC.defaultTokenDecoder
         AC.defaultExpiresInDecoder

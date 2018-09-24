@@ -165,11 +165,13 @@ locationToRedirectBackUri url =
         ++ url.path
 
 
-{-| Send an authorization request.
+{-| Compute an authorization request Url.
 
 This will cause the authorization server to ask the user to login. If successful, it will send the received code and `TokenAuthorization.state` to the `TokenAuthorization.authorization.redirectUri` for generation of a token to send back to the `TokenAuthorization.redirectBackUri`. Your code at that Uri will receive an encoded `ResponseToken` on the `responseTokenQuery` parameter, or an error string on the `responseTokenQueryError` parameter. Use `decodeResponseToken` to turn the `responseTokenQuery` string into an `ResponseToken`, which you can use to do authenticated requests, just as if you had called `OAuth.TokenAuthorizationCode.authenticate` yourself, but hiding the client secret on the redirect server.
 
-The returned `Cmd` will cause the user's browser to navigate away from your app for authentication and token fetching by the `redirectUri`. The redirect server will navigate back with query args that you can process with `receiveTokenAndState`.
+A return value of `Nothing` means that either the authorization uri or the redirect uri could not be parsed as valid uris.
+
+Otherwise, navigating to the the returned `Url` will go to the the OAuth provider's authentication page, followed by token fetching by the redirect server at `redirectUri`. The redirect server will navigate back with query args that you can process with `receiveTokenAndState`.
 
 -}
 authorize : TokenAuthorization -> Maybe Url
