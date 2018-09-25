@@ -38,7 +38,7 @@ module OAuthMiddleware.ResponseToken exposing
 -}
 
 import Json.Decode as Json
-import OAuth exposing (Token)
+import OAuth exposing (Token, TokenString, TokenType)
 import OAuth.AuthorizationCode as AC
 
 
@@ -81,7 +81,16 @@ responseTokenDecoder =
         stateDecoder
 
 
-makeToken : Maybe String -> Maybe String -> Maybe Token
+{-| Create a token from two string representing a token type and
+an actual token value. This is intended to be used in Json decoders
+or Query parsers. Returns 'Nothing' when the token type is Nothing
+, different from Just "Bearer" or when there's no token at all.
+
+Same as OAuth.makeToken, but allows "bearer" as well as "Bearer" for
+the `TokenType`.
+
+-}
+makeToken : Maybe TokenType -> Maybe TokenString -> Maybe Token
 makeToken maybeType tokenString =
     let
         typ =
