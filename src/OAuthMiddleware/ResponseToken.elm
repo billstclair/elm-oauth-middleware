@@ -13,7 +13,7 @@
 module OAuthMiddleware.ResponseToken exposing
     ( ResponseToken
     , responseTokenDecoder, stateDecoder
-    , makeResponseToken
+    , makeToken, makeResponseToken
     )
 
 {-| This module revives the `ResponseToken` type.
@@ -38,7 +38,7 @@ module OAuthMiddleware.ResponseToken exposing
 -}
 
 import Json.Decode as Json
-import OAuth exposing (..)
+import OAuth exposing (Token)
 import OAuth.AuthorizationCode as AC
 
 
@@ -74,11 +74,50 @@ type alias ResponseToken =
 responseTokenDecoder : Json.Decoder ResponseToken
 responseTokenDecoder =
     Json.map5 makeResponseToken
-        AC.defaultTokenDecoder
+        tokenDecoder
         AC.defaultExpiresInDecoder
         AC.defaultRefreshTokenDecoder
         AC.defaultScopeDecoder
         stateDecoder
+
+
+makeToken : Maybe String -> Maybe String -> Maybe Token
+makeToken maybeType tokenString =
+    let
+        typ =
+            case maybeType of
+                Just "bearer" ->
+                    Just "Bearer"
+
+                t ->
+                    t
+    in
+    OAuth.makeToken typ tokenString
+
+
+{-| Json decoder for an access token.
+
+Changed from AC.defaultTokenDecoder to allow lowercase "bearer".
+
+-}
+tokenDecoder : Json.Decoder Token
+tokenDecoder =
+    Json.andThen
+        (decoderFromJust
+            "missing or invalid 'access_token' / 'token_type'"
+        )
+    <|
+        Json.map2 makeToken
+            (Json.field "token_type" Json.string |> Json.map Just)
+            (Json.field "access_token" Json.string |> Json.map Just)
+
+
+{-| Combinator for JSON decoders to extract values from a `Maybe` or fail
+with the given message (when `Nothing` is encountered)
+-}
+decoderFromJust : String -> Maybe a -> Json.Decoder a
+decoderFromJust msg =
+    Maybe.map Json.succeed >> Maybe.withDefault (Json.fail msg)
 
 
 {-| Json decoder for a state

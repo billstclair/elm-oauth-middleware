@@ -12,6 +12,8 @@
 
 module Main exposing (Api, Model, Msg(..), apis, getUser, init, lookupProvider, main, providerOption, providerSelect, update, userAgentHeader, view)
 
+import Browser exposing (Document, UrlRequest)
+import Browser.Navigation as Navigation exposing (Key)
 import Dict exposing (Dict)
 import Html
     exposing
@@ -36,7 +38,6 @@ import Html.Events exposing (onClick, onInput)
 import Http
 import Json.Decode as JD
 import Json.Encode as JE exposing (Value)
-import Navigation exposing (Location)
 import OAuthMiddleware
     exposing
         ( Authorization
@@ -54,10 +55,12 @@ import OAuthMiddleware.EncodeDecode
         ( authorizationsEncoder
         , responseTokenEncoder
         )
+import Url exposing (Url)
 
 
 type alias Model =
-    { authorization : Maybe Authorization
+    { key : Key
+    , authorization : Maybe Authorization
     , token : Maybe ResponseToken
     , state : Maybe String
     , msg : Maybe String
@@ -72,7 +75,8 @@ type alias Model =
 
 
 type Msg
-    = ReceiveLocation Location
+    = OnUrlRequest UrlRequest
+    | OnUrlChange Url
     | ReceiveAuthorizations (Result Http.Error (List Authorization))
     | ChangeProvider String
     | Login
@@ -115,20 +119,21 @@ apis =
 
 
 main =
-    Navigation.program
-        ReceiveLocation
+    Browser.application
         { init = init
-        , update = update
         , view = view
+        , update = update
         , subscriptions = \_ -> Sub.none
+        , onUrlRequest = OnUrlRequest
+        , onUrlChange = OnUrlChange
         }
 
 
-init : Location -> ( Model, Cmd Msg )
-init location =
+init : () -> Url -> Key -> ( Model, Cmd Msg )
+init _ url key =
     let
         ( token, state, msg ) =
-            case receiveTokenAndState location of
+            case receiveTokenAndState url of
                 TokenAndState tok stat ->
                     ( Just tok, stat, Nothing )
 
@@ -141,7 +146,8 @@ init location =
                 NoToken ->
                     ( Nothing, Nothing, Nothing )
     in
-    ( { authorization = Nothing
+    ( { key = key
+      , authorization = Nothing
       , token = token
       , state = state
       , msg = msg
@@ -153,7 +159,7 @@ init location =
 
                 Just tok ->
                     Just <| responseTokenEncoder tok
-      , redirectBackUri = locationToRedirectBackUri location
+      , redirectBackUri = locationToRedirectBackUri url
       , authorizations = Dict.empty
       , provider =
             case state of
@@ -161,14 +167,14 @@ init location =
                     p
 
                 Nothing ->
-                    "Gmail"
+                    "GitHub"
       , tokenAuthorization = Nothing
       , api = Nothing
       }
     , Cmd.batch
         [ Http.send ReceiveAuthorizations <|
             getAuthorizations False "authorizations.json"
-        , Navigation.modifyUrl "#"
+        , Navigation.replaceUrl key "#"
         ]
     )
 
@@ -261,7 +267,12 @@ lookupProvider model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ReceiveLocation _ ->
+        OnUrlRequest _ ->
+            ( model
+            , Cmd.none
+            )
+
+        OnUrlChange _ ->
             ( model
             , Cmd.none
             )
@@ -269,7 +280,7 @@ update msg model =
         ReceiveAuthorizations result ->
             case result of
                 Err err ->
-                    ( { model | msg = Just <| toString err }
+                    ( { model | msg = Just <| Debug.toString err }
                     , Cmd.none
                     )
 
@@ -312,9 +323,18 @@ update msg model =
                     )
 
                 Just authorization ->
-                    ( model
-                    , authorize authorization
-                    )
+                    case authorize authorization of
+                        Nothing ->
+                            ( { model
+                                | msg = Just "Bad Uri in authorizations.json."
+                              }
+                            , Cmd.none
+                            )
+
+                        Just url ->
+                            ( model
+                            , Navigation.load <| Url.toString url
+                            )
 
         GetUser ->
             getUser model
@@ -324,7 +344,7 @@ update msg model =
                 Err err ->
                     ( { model
                         | reply = Nothing
-                        , msg = Just <| toString err
+                        , msg = Just <| Debug.toString err
                       }
                     , Cmd.none
                     )
@@ -358,32 +378,36 @@ providerSelect model =
         )
 
 
-view : Model -> Html Msg
+view : Model -> Document Msg
 view model =
-    div
-        [ style "margin-left" "3em"
-        ]
-        [ h2 [] [ text "OAuthMiddleware Example" ]
-        , p []
-            [ text "Provider: "
-            , providerSelect model
+    { title = "OAuthMiddleware Example"
+    , body =
+        [ div
+            [ style "margin-left" "3em"
             ]
-        , p []
-            [ button [ onClick Login ]
-                [ text "Login" ]
-            , text " "
-            , button [ onClick GetUser ]
-                [ text "Get User" ]
-            ]
-        , pre []
-            [ case ( model.msg, model.reply ) of
-                ( Just msg, _ ) ->
-                    text <| toString msg
+            [ h2 [] [ text "OAuthMiddleware Example" ]
+            , p []
+                [ text "Provider: "
+                , providerSelect model
+                ]
+            , p []
+                [ button [ onClick Login ]
+                    [ text "Login" ]
+                , text " "
+                , button [ onClick GetUser ]
+                    [ text "Get User" ]
+                ]
+            , pre []
+                [ case ( model.msg, model.reply ) of
+                    ( Just msg, _ ) ->
+                        text <| Debug.toString msg
 
-                ( _, Just reply ) ->
-                    text <| model.replyType ++ ":\n" ++ JE.encode 2 reply
+                    ( _, Just reply ) ->
+                        text <| model.replyType ++ ":\n" ++ JE.encode 2 reply
 
-                _ ->
-                    text "Nothing to report"
+                    _ ->
+                        text "Nothing to report"
+                ]
             ]
         ]
+    }
