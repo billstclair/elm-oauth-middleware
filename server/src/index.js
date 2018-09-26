@@ -3,7 +3,7 @@ const Http = require("http")
 const Ews = require("./ews.js")
 const App = require("./elm.js")
 
-const worker = App.OAuthTokenServer.worker()
+const worker = App.Elm.OAuthTokenServer.init()
 const receiveFile = worker.ports.receiveFile
 
 worker.ports.getFile.subscribe(function(filename) {
