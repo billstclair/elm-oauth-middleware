@@ -1,24 +1,23 @@
-port module Server.Http
-    exposing
-        ( Id
-        , Method(..)
-        , Request
-        , Response
-        , Status
-        , addHeader
-        , badRequestStatus
-        , emptyResponse
-        , foundStatus
-        , htmlResponse
-        , internalErrorStatus
-        , jsonResponse
-        , listen
-        , notFoundStatus
-        , okStatus
-        , send
-        , textResponse
-        , unauthorizedStatus
-        )
+port module Server.Http exposing
+    ( Id
+    , Method(..)
+    , Request
+    , Response
+    , Status
+    , addHeader
+    , badRequestStatus
+    , emptyResponse
+    , foundStatus
+    , htmlResponse
+    , internalErrorStatus
+    , jsonResponse
+    , listen
+    , notFoundStatus
+    , okStatus
+    , send
+    , textResponse
+    , unauthorizedStatus
+    )
 
 import Dict exposing (Dict)
 import Json.Decode as D exposing (Decoder)
@@ -91,9 +90,19 @@ requestDecoder =
         (D.field "body" (D.maybe D.string))
 
 
+decodeValue : Decoder a -> D.Value -> Result String a
+decodeValue decoder value =
+    case D.decodeValue decoder value of
+        Ok a ->
+            Ok a
+
+        Err e ->
+            Err <| D.errorToString e
+
+
 listen : (Result String Request -> msg) -> Sub msg
 listen msg =
-    httpIn (msg << D.decodeValue requestDecoder)
+    httpIn (msg << decodeValue requestDecoder)
 
 
 
@@ -122,7 +131,7 @@ htmlResponse status html id =
     Response
         { id = id
         , status = status
-        , headers = Dict.fromList [ (,) "content-type" "text/html" ]
+        , headers = Dict.fromList [ ( "content-type", "text/html" ) ]
         , body = Just (Html.toString html)
         }
 
@@ -132,7 +141,7 @@ textResponse status text id =
     Response
         { id = id
         , status = status
-        , headers = Dict.fromList [ (,) "content-type" "text/plain" ]
+        , headers = Dict.fromList [ ( "content-type", "text/plain" ) ]
         , body = Just text
         }
 
@@ -142,7 +151,7 @@ jsonResponse status json id =
     Response
         { id = id
         , status = status
-        , headers = Dict.fromList [ (,) "content-type" "application/json" ]
+        , headers = Dict.fromList [ ( "content-type", "application/json" ) ]
         , body = Just (E.encode 0 json)
         }
 

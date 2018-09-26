@@ -1,4 +1,4 @@
-----------------------------------------------------------------------
+---------------------------------------------------------------------
 --
 -- OAuthTokenServer.elm
 -- Top-level file for OAuthMiddleware redirectBackUri server.
@@ -13,18 +13,16 @@
 port module OAuthTokenServer exposing (main)
 
 import Base64
+import Browser
 import Debug
 import Dict exposing (Dict)
-import Erl
-import Erl.Query as Q
-import Http
+import Http exposing (Error(..))
 import Json.Decode as JD
 import Json.Encode as JE
 import List.Extra as LE
-import OAuth exposing (ResponseToken)
-import OAuth.AuthorizationCode
-import OAuth.Decode as OD exposing (AdjustRequest)
+import OAuth.AuthorizationCode as AC exposing (AuthenticationSuccess, RequestParts)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
+import OAuthMiddleware.ResponseToken exposing (ResponseToken)
 import OAuthMiddleware.ServerConfiguration
     exposing
         ( LocalServerConfiguration
@@ -32,9 +30,11 @@ import OAuthMiddleware.ServerConfiguration
         , configurationsDecoder
         , defaultLocalServerConfiguration
         )
-import Platform
 import Server.Http
-import Time exposing (Time)
+import Time exposing (Posix)
+import Url exposing (Url)
+import Url.Parser as Parser exposing ((<?>))
+import Url.Parser.Query as Query
 
 
 port getFile : String -> Cmd msg
@@ -71,13 +71,13 @@ type alias Model =
 type Msg
     = NoOp
     | ReceiveConfig (Maybe String)
-    | ProbeConfig Time
+    | ProbeConfig Posix
     | NewRequest Server.Http.Request
-    | ReceiveToken Server.Http.Id String (List String) (Maybe String) (Result Http.Error OAuth.ResponseToken)
+    | ReceiveToken Server.Http.Id String (List String) (Maybe String) (Result Http.Error AuthenticationSuccess)
 
 
-init : ( Model, Cmd Msg )
-init =
+init : () -> ( Model, Cmd Msg )
+init () =
     ( { configString = ""
       , config = []
       , redirectDict = Dict.empty
@@ -102,7 +102,10 @@ receiveConfig file model =
     case file of
         Nothing ->
             if model.configString == "error" then
-                model ! []
+                ( model
+                , Cmd.none
+                )
+
             else
                 let
                     m1 =
@@ -113,15 +116,20 @@ receiveConfig file model =
                         if model.config == [] then
                             Debug.log "Fatal"
                                 "Empty configuration makes me a very useless server."
+
                         else
                             ""
                 in
-                { model | configString = "error" }
-                    ! []
+                ( { model | configString = "error" }
+                , Cmd.none
+                )
 
         Just json ->
             if json == model.configString then
-                model ! []
+                ( model
+                , Cmd.none
+                )
+
             else
                 case JD.decodeString configurationsDecoder json of
                     Err msg ->
@@ -134,11 +142,13 @@ receiveConfig file model =
                                 if model.config == [] then
                                     Debug.log "Fatal"
                                         "Empty configuration makes me a very useless server."
+
                                 else
                                     ""
                         in
-                        { model | configString = json }
-                            ! []
+                        ( { model | configString = json }
+                        , Cmd.none
+                        )
 
                     Ok { local, remote } ->
                         let
@@ -146,6 +156,7 @@ receiveConfig file model =
                                 if remote == [] then
                                     Debug.log "Notice"
                                         "Empty remote configuration disabled server."
+
                                 else
                                     Debug.log "Notice"
                                         ("Successfully parsed " ++ configFile)
@@ -165,12 +176,52 @@ updateLocalConfig config model =
         cmd =
             if config.httpPort == model.localConfig.httpPort then
                 Cmd.none
+
             else
                 httpListen config.httpPort
     in
     ( { model | localConfig = config }
     , cmd
     )
+
+
+authenticationErrorToString : Http.Error -> String
+authenticationErrorToString error =
+    case error of
+        Http.BadStatus { body } ->
+            case JD.decodeString AC.defaultAuthenticationErrorDecoder body of
+                Ok { errorDescription } ->
+                    case errorDescription of
+                        Just desc ->
+                            desc
+
+                        Nothing ->
+                            httpErrorToString error
+
+                _ ->
+                    httpErrorToString error
+
+        _ ->
+            httpErrorToString error
+
+
+httpErrorToString : Http.Error -> String
+httpErrorToString error =
+    case error of
+        BadUrl s ->
+            "BadUrl: " ++ s
+
+        Timeout ->
+            "Timeout"
+
+        NetworkError ->
+            "NetworkError"
+
+        BadStatus _ ->
+            "BadStatus"
+
+        BadPayload s _ ->
+            "BadPayload: " ++ s
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -180,7 +231,9 @@ update msg model =
             receiveConfig file model
 
         ProbeConfig _ ->
-            model ! [ getConfig ]
+            ( model
+            , getConfig
+            )
 
         NewRequest request ->
             newRequest request model
@@ -191,29 +244,26 @@ update msg model =
                     case result of
                         Err err ->
                             ED.encodeResponseTokenError
-                                { err = toString err
+                                { err = authenticationErrorToString err
                                 , state = state
                                 }
 
-                        Ok responseToken ->
+                        Ok success ->
                             ED.encodeResponseToken
-                                { responseToken
-                                    | scope =
-                                        if [] == responseToken.scope then
-                                            scope
-                                        else
-                                            responseToken.scope
-                                    , state = state
+                                { token = success.token
+                                , refreshToken = success.refreshToken
+                                , expiresIn = success.expiresIn
+                                , scope =
+                                    if [] == success.scope then
+                                        scope
+
+                                    else
+                                        success.scope
+                                , state = state
                                 }
 
                 base64 =
-                    case Base64.encode string of
-                        Ok b ->
-                            b
-
-                        Err _ ->
-                            -- Can't happen
-                            ""
+                    Base64.encode string
 
                 location =
                     redirectBackUri ++ "#" ++ base64
@@ -224,112 +274,135 @@ update msg model =
                         id
                         |> Server.Http.addHeader "location" location
             in
-            model
-                ! [ Server.Http.send response ]
+            ( model
+            , Server.Http.send response
+            )
 
         NoOp ->
-            model ! []
+            ( model
+            , Cmd.none
+            )
+
+
+codeAndStateParser =
+    Parser.top
+        <?> Query.map2 Tuple.pair
+                (Query.string "code")
+                (Query.string "state")
+
+
+parseCodeAndState : Url -> Maybe ( String, String )
+parseCodeAndState url =
+    -- TODO
+    Nothing
 
 
 {-| The request comes from the authorization server, and is of the form:
 
 ...?code=<long code>&state=<from OAuthMiddleware.EncodeDecode.encodeRedirectState>
 
-We can also get "?error=access_denied&state=<foo>"
+We can also get "?error=access\_denied&state=<foo>"
 
 -}
 newRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
 newRequest request model =
-    let
-        url =
-            Erl.parse request.url
+    case Url.fromString request.url of
+        Nothing ->
+            -- This shouldn't happen
+            ( model
+            , Server.Http.send <|
+                Server.Http.textResponse
+                    Server.Http.badRequestStatus
+                    ("Can't parse url: " ++ request.url)
+                    request.id
+            )
 
-        host =
-            url.host
+        Just url ->
+            case parseCodeAndState url of
+                Just ( code, state ) ->
+                    authRequest code state url request model
 
-        query =
-            url.query
-
-        codes =
-            Q.getValuesForKey "code" query
-
-        states =
-            Q.getValuesForKey "state" query
-    in
-    case ( codes, states ) of
-        ( [ code ], [ state ] ) ->
-            authRequest code state url request model
-
-        _ ->
-            model
-                ! [ Server.Http.send <|
+                _ ->
+                    ( model
+                    , Server.Http.send <|
                         Server.Http.textResponse
                             Server.Http.badRequestStatus
                             "Bad request, missing code/state"
                             request.id
-                  ]
+                    )
 
 
-adjustRequest : AdjustRequest ResponseToken
+{-| This was needed before the update to truqu/elm-oauth2 4.0.0.
+
+It probably still is.
+
+-}
+adjustRequest : RequestParts a -> RequestParts a
 adjustRequest req =
     let
         headers =
             Http.header "Accept" "application/json" :: req.headers
-
-        expect =
-            Http.expectJson ED.responseTokenDecoder
     in
-    { req | headers = headers, expect = expect }
+    { req | headers = headers }
 
 
-tokenRequest : RedirectState -> String -> Model -> Result String (Http.Request OAuth.ResponseToken)
+tokenRequest : RedirectState -> String -> Model -> Result String (Http.Request AuthenticationSuccess)
 tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code model =
     let
         key =
             ( clientId, tokenUri )
-
-        host =
-            Erl.extractHost redirectBackUri
-
-        protocol =
-            Erl.extractProtocol redirectBackUri
     in
-    case Dict.get key model.redirectDict of
+    case Url.fromString redirectBackUri of
         Nothing ->
-            Err <|
-                "Unknown (clientId, tokenUri): ("
-                    ++ clientId
-                    ++ ", "
-                    ++ tokenUri
-                    ++ ")"
+            Err <| "Can't parse redirectBackUri: " ++ redirectBackUri
 
-        Just { clientSecret, redirectBackHosts } ->
-            case LE.find (\rbh -> rbh.host == host) redirectBackHosts of
+        Just { host, protocol } ->
+            case Dict.get key model.redirectDict of
                 Nothing ->
-                    Err <| "Unknown redirect host: " ++ host
+                    Err <|
+                        "Unknown (clientId, tokenUri): ("
+                            ++ clientId
+                            ++ ", "
+                            ++ tokenUri
+                            ++ ")"
 
-                Just { ssl } ->
-                    if ssl && protocol /= "https" then
-                        Err <| "https protocol required for redirect host: " ++ host
-                    else
-                        Ok <|
-                            OAuth.AuthorizationCode.authenticateWithOpts
-                                adjustRequest
-                            <|
-                                OAuth.AuthorizationCode
-                                    { credentials =
-                                        { clientId = clientId
-                                        , secret = clientSecret
-                                        }
-                                    , code = code
-                                    , redirectUri = redirectUri
-                                    , scope = scope
-                                    , state = Nothing --we already have this in our hand
-                                    , url = tokenUri
-                                    }
+                Just { clientSecret, redirectBackHosts } ->
+                    case LE.find (\rbh -> rbh.host == host) redirectBackHosts of
+                        Nothing ->
+                            Err <| "Unknown redirect host: " ++ host
+
+                        Just { ssl } ->
+                            if ssl && protocol /= Url.Https then
+                                Err <| "https protocol required for redirect host: " ++ host
+
+                            else
+                                case
+                                    ( Url.fromString redirectUri
+                                    , Url.fromString tokenUri
+                                    )
+                                of
+                                    ( Just redirectUrl, Just tokenUrl ) ->
+                                        let
+                                            requestParts =
+                                                AC.makeTokenRequest
+                                                    { credentials =
+                                                        { clientId = clientId
+                                                        , secret = Just clientSecret
+                                                        }
+                                                    , code = code
+                                                    , redirectUri = redirectUrl
+                                                    , url = tokenUrl
+                                                    }
+                                        in
+                                        Http.request
+                                            (adjustRequest requestParts)
+                                            |> Ok
+
+                                    _ ->
+                                        Err "Can't parse redirectUri or tokenUri"
 
 
-authRequest : String -> String -> Erl.Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
+authRequest : String -> String -> Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
 authRequest code b64State url request model =
     let
         cmd =
@@ -359,7 +432,7 @@ authRequest code b64State url request model =
                                             msg
                                             request.id
 
-                                Ok tokenRequest ->
+                                Ok tr ->
                                     Http.send
                                         (ReceiveToken
                                             request.id
@@ -367,9 +440,11 @@ authRequest code b64State url request model =
                                             redirectState.scope
                                             redirectState.state
                                         )
-                                        tokenRequest
+                                        tr
     in
-    model ! [ cmd ]
+    ( model
+    , cmd
+    )
 
 
 routeRequest : Result String Server.Http.Request -> Msg
@@ -395,13 +470,14 @@ subscriptions model =
               in
               if period <= 0 then
                 []
+
               else
-                [ Time.every (toFloat period * Time.second) ProbeConfig ]
+                [ Time.every (toFloat period * 1000) ProbeConfig ]
             ]
 
 
 main =
-    Platform.program
+    Platform.worker
         { init = init
         , update = update
         , subscriptions = subscriptions

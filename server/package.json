@@ -8,10 +8,10 @@
   "description": "An OAuth redirect server to hide the client secret from web apps.",
   "scripts": {
     "start": "node build/index.js",
-    "make": "elm-make src/OAuthTokenServer.elm --output build/elm.js",
+    "make": "elm make src/OAuthTokenServer.elm --output build/elm.js",
     "make-and-go": "npm run make && npm start",
-    "build": "cp -p src/config.json.template build/ && cp -p src/index.js build/ && cp -p ews/index.js build/ews.js && elm-make src/OAuthTokenServer.elm --output build/elm.js",
-    "setup": "rm -rf build elm-stuff node_modules && npm i -y && elm-package install -y && mkdir build && npm run build"
+    "build": "cp -p src/config.json.template build/ && cp -p src/index.js build/ && cp -p ews/index.js build/ews.js && elm make src/OAuthTokenServer.elm --output build/elm.js",
+    "setup": "rm -rf build elm-stuff node_modules && npm i -y && mkdir build && npm run build"
   },
   "keywords": [],
   "author": "Bill St. Clair <billstclair@gmail.com",
