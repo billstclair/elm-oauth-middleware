@@ -284,6 +284,8 @@ update msg model =
             )
 
 
+{-| The signature really isn't interesting here.
+-}
 codeAndStateParser =
     Parser.top
         <?> Query.map2 Tuple.pair
@@ -293,8 +295,12 @@ codeAndStateParser =
 
 parseCodeAndState : Url -> Maybe ( String, String )
 parseCodeAndState url =
-    -- TODO
-    Nothing
+    case Parser.parse codeAndStateParser { url | path = "" } of
+        Just ( Just code, Just state ) ->
+            Just ( code, state )
+
+        _ ->
+            Nothing
 
 
 {-| The request comes from the authorization server, and is of the form:
