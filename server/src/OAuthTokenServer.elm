@@ -33,6 +33,7 @@ import OAuthMiddleware.ServerConfiguration
 import Server.Http
 import Time exposing (Posix)
 import Url exposing (Url)
+import Url.Builder as Builder
 import Url.Parser as Parser exposing ((<?>))
 import Url.Parser.Query as Query
 
@@ -312,7 +313,17 @@ We can also get "?error=access\_denied&state=<foo>"
 -}
 newRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
 newRequest request model =
-    case Url.fromString request.url of
+    case request.method of
+        Server.Http.Post ->
+            oauthProviderRequest request model
+
+        _ ->
+            redirectUriRequest request model
+
+
+redirectUriRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
+redirectUriRequest request model =
+    case Url.fromString ("http://localhost" ++ Debug.log "url" request.url) of
         Nothing ->
             -- This shouldn't happen
             ( model
@@ -329,13 +340,102 @@ newRequest request model =
                     authRequest code state url request model
 
                 _ ->
-                    ( model
-                    , Server.Http.send <|
-                        Server.Http.textResponse
-                            Server.Http.badRequestStatus
-                            "Bad request, missing code/state"
-                            request.id
-                    )
+                    case parseAuthorization url of
+                        Just authorization ->
+                            handleAuthorization authorization request model
+
+                        Nothing ->
+                            ( model
+                            , Server.Http.send <|
+                                Server.Http.textResponse
+                                    Server.Http.badRequestStatus
+                                    "Bad request, missing code/state"
+                                    request.id
+                            )
+
+
+{-| If you send something that looks like an authorization request,
+
+we behave like an authorization server that always approves.
+
+For testing.
+
+-}
+handleAuthorization : AuthorizationRequest -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
+handleAuthorization authorization request model =
+    let
+        { clientId, redirectUri, state } =
+            authorization
+
+        query =
+            Builder.relative []
+                [ Builder.string "code" "xyzzy"
+                , Builder.string "state" state
+                ]
+
+        location =
+            redirectUri ++ query
+
+        response =
+            Server.Http.emptyResponse
+                Server.Http.foundStatus
+                request.id
+                |> Server.Http.addHeader "location" location
+    in
+    ( model
+    , Server.Http.send response
+    )
+
+
+parseAuthorization : Url -> Maybe AuthorizationRequest
+parseAuthorization url =
+    case Parser.parse authorizationParser { url | path = "" } of
+        Just { clientId, redirectUri, state } ->
+            case ( clientId, redirectUri, state ) of
+                ( Just cid, Just ruri, Just s ) ->
+                    Just <| AuthorizationRequest cid ruri s
+
+                _ ->
+                    Nothing
+
+        _ ->
+            Nothing
+
+
+{-| If we get a POST, try to parse it as an authentication request.
+
+Succeed, unless the clientId is "fail".
+
+-}
+oauthProviderRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
+oauthProviderRequest request model =
+    let
+        req =
+            Debug.log "oauthProviderRequest" request
+    in
+    ( model, Cmd.none )
+
+
+type alias AuthorizationRequest =
+    { clientId : String
+    , redirectUri : String
+    , state : String
+    }
+
+
+type alias MaybeAuthorizationRequest =
+    { clientId : Maybe String
+    , redirectUri : Maybe String
+    , state : Maybe String
+    }
+
+
+authorizationParser =
+    Parser.top
+        <?> Query.map3 MaybeAuthorizationRequest
+                (Query.string "client_id")
+                (Query.string "redirect_uri")
+                (Query.string "state")
 
 
 {-| This was needed before the update to truqu/elm-oauth2 4.0.0.
