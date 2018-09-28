@@ -15,5 +15,17 @@
    "clientId": "clientid",
    "clientSecret": "secret",
    "redirectBackHosts": ["https://example.com", "oauth-client-dev.com"]
+  },
+  {"comment": "The two below are for local testing."
+  },
+  {"tokenUri": "http://localhost:3001/authenticate",
+   "clientId": "succeed",
+   "clientSecret": "secret",
+   "redirectBackHosts": ["localhost", "xossbowdev.com" ]
+  },
+  {"tokenUri": "http://localhost:3001/authenticate",
+   "clientId": "fail",
+   "clientSecret": "secret",
+   "redirectBackHosts": ["localhost", "xossbowdev.com" ]
   }
 ]

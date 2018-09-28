@@ -18,11 +18,11 @@ import Debug
 import Dict exposing (Dict)
 import Http exposing (Error(..))
 import Json.Decode as JD
-import Json.Encode as JE
+import Json.Encode as JE exposing (Value)
 import List.Extra as LE
-import OAuth.AuthorizationCode as AC exposing (AuthenticationSuccess, RequestParts)
+import OAuth.AuthorizationCode as AC exposing (RequestParts)
 import OAuthMiddleware.EncodeDecode as ED exposing (RedirectState)
-import OAuthMiddleware.ResponseToken exposing (ResponseToken)
+import OAuthMiddleware.ResponseToken as ResponseToken exposing (ResponseToken)
 import OAuthMiddleware.ServerConfiguration
     exposing
         ( LocalServerConfiguration
@@ -74,7 +74,7 @@ type Msg
     | ReceiveConfig (Maybe String)
     | ProbeConfig Posix
     | NewRequest Server.Http.Request
-    | ReceiveToken Server.Http.Id String (List String) (Maybe String) (Result Http.Error AuthenticationSuccess)
+    | ReceiveToken Server.Http.Id String (List String) (Maybe String) (Result Http.Error ResponseToken)
 
 
 init : () -> ( Model, Cmd Msg )
@@ -315,23 +315,33 @@ newRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
 newRequest request model =
     case request.method of
         Server.Http.Post ->
-            oauthProviderRequest request model
+            providerTokenRequest request model
 
         _ ->
             redirectUriRequest request model
 
 
+badRequestCmd : String -> Server.Http.Request -> Cmd Msg
+badRequestCmd message request =
+    Server.Http.send <|
+        Server.Http.textResponse
+            Server.Http.badRequestStatus
+            message
+            request.id
+
+
+httpLocalhost : String
+httpLocalhost =
+    "http://localhost"
+
+
 redirectUriRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
 redirectUriRequest request model =
-    case Url.fromString ("http://localhost" ++ Debug.log "url" request.url) of
+    case Url.fromString (httpLocalhost ++ request.url) of
         Nothing ->
             -- This shouldn't happen
             ( model
-            , Server.Http.send <|
-                Server.Http.textResponse
-                    Server.Http.badRequestStatus
-                    ("Can't parse url: " ++ request.url)
-                    request.id
+            , badRequestCmd ("Can't parse url: " ++ request.url) request
             )
 
         Just url ->
@@ -346,11 +356,9 @@ redirectUriRequest request model =
 
                         Nothing ->
                             ( model
-                            , Server.Http.send <|
-                                Server.Http.textResponse
-                                    Server.Http.badRequestStatus
-                                    "Bad request, missing code/state"
-                                    request.id
+                            , badRequestCmd
+                                "Bad request, missing code/state"
+                                request
                             )
 
 
@@ -387,6 +395,20 @@ handleAuthorization authorization request model =
     )
 
 
+type alias AuthorizationRequest =
+    { clientId : String
+    , redirectUri : String
+    , state : String
+    }
+
+
+type alias MaybeAuthorizationRequest =
+    { clientId : Maybe String
+    , redirectUri : Maybe String
+    , state : Maybe String
+    }
+
+
 parseAuthorization : Url -> Maybe AuthorizationRequest
 parseAuthorization url =
     case Parser.parse authorizationParser { url | path = "" } of
@@ -402,34 +424,6 @@ parseAuthorization url =
             Nothing
 
 
-{-| If we get a POST, try to parse it as an authentication request.
-
-Succeed, unless the clientId is "fail".
-
--}
-oauthProviderRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
-oauthProviderRequest request model =
-    let
-        req =
-            Debug.log "oauthProviderRequest" request
-    in
-    ( model, Cmd.none )
-
-
-type alias AuthorizationRequest =
-    { clientId : String
-    , redirectUri : String
-    , state : String
-    }
-
-
-type alias MaybeAuthorizationRequest =
-    { clientId : Maybe String
-    , redirectUri : Maybe String
-    , state : Maybe String
-    }
-
-
 authorizationParser =
     Parser.top
         <?> Query.map3 MaybeAuthorizationRequest
@@ -438,21 +432,247 @@ authorizationParser =
                 (Query.string "state")
 
 
-{-| This was needed before the update to truqu/elm-oauth2 4.0.0.
+{-| If we get a POST, try to parse it as an authentication request.
 
-It probably still is.
+Succeed, unless the clientId is "fail".
+
+<https://www.oauth.com/oauth2-servers/access-tokens/authorization-code-request>
 
 -}
-adjustRequest : RequestParts a -> RequestParts a
+providerTokenRequest : Server.Http.Request -> Model -> ( Model, Cmd Msg )
+providerTokenRequest request model =
+    let
+        ( uri, query ) =
+            case request.body of
+                Just q ->
+                    ( httpLocalhost ++ "/?" ++ q, q )
+
+                Nothing ->
+                    ( httpLocalhost ++ request.url, request.url )
+    in
+    case Url.fromString uri of
+        Nothing ->
+            ( model
+            , invalidTokenRequest
+                ("Can't parse provider token request: " ++ query)
+                request
+            )
+
+        Just url ->
+            case parseProviderTokenRequest url of
+                Nothing ->
+                    ( model
+                    , invalidTokenRequest
+                        ("Malformed provider token request: " ++ query)
+                        request
+                    )
+
+                Just { clientId, clientSecret } ->
+                    case ( clientId, clientSecret ) of
+                        ( Just cid, Just _ ) ->
+                            if cid == "fail" then
+                                ( model, invalidTokenClient request )
+
+                            else
+                                ( model, providerTokenResponse request )
+
+                        _ ->
+                            case checkProviderTokenAuthorization request of
+                                Ok ( cid, _ ) ->
+                                    if cid == "fail" then
+                                        ( model, invalidTokenClient request )
+
+                                    else
+                                        ( model, providerTokenResponse request )
+
+                                Err err ->
+                                    ( model, invalidTokenRequest err request )
+
+
+tokenErrorJson : String -> String -> String
+tokenErrorJson error description =
+    let
+        value =
+            JE.object
+                [ ( "error", JE.string error )
+                , ( "error_description", JE.string description )
+                , ( "error_uri"
+                  , JE.string "See https://www.oauth.com/oauth2-servers/access-tokens/authorization-code-request"
+                  )
+                ]
+    in
+    Debug.log "tokenErrorJson" <|
+        JE.encode 0 value
+
+
+tokenErrorCmd : Server.Http.Status -> String -> Server.Http.Request -> Cmd Msg
+tokenErrorCmd status body request =
+    let
+        response =
+            Server.Http.textResponse status body request.id
+                |> Server.Http.addHeader "Cache-Control" "no-store"
+                |> Server.Http.addHeader "Pragma" "no-cache"
+    in
+    Server.Http.send response
+
+
+{-| <https://www.oauth.com/oauth2-servers/access-tokens/access-token-response>
+-}
+invalidTokenRequest : String -> Server.Http.Request -> Cmd Msg
+invalidTokenRequest err request =
+    let
+        json =
+            tokenErrorJson "invalid_request" err
+    in
+    tokenErrorCmd Server.Http.badRequestStatus json request
+
+
+{-| <https://www.oauth.com/oauth2-servers/access-tokens/access-token-response>
+-}
+invalidTokenClient : Server.Http.Request -> Cmd Msg
+invalidTokenClient request =
+    let
+        json =
+            tokenErrorJson "invalid_client" "Client authentication failed."
+    in
+    tokenErrorCmd Server.Http.unauthorizedStatus json request
+
+
+tokenResponseJson : Int -> String
+tokenResponseJson expiresIn =
+    let
+        value =
+            JE.object
+                [ ( "access_token", JE.string "yourTokenSir" )
+                , ( "token_type", JE.string "bearer" )
+                , ( "expires_in", JE.int expiresIn )
+                , ( "refresh_token", JE.string "aRefreshToken" )
+                ]
+    in
+    Debug.log "tokenResponseJson" <|
+        JE.encode 0 value
+
+
+{-| <https://www.oauth.com/oauth2-servers/access-tokens/access-token-response>
+-}
+providerTokenResponse : Server.Http.Request -> Cmd Msg
+providerTokenResponse request =
+    let
+        json =
+            tokenResponseJson 3600
+
+        response =
+            Server.Http.textResponse Server.Http.okStatus json request.id
+    in
+    Server.Http.send response
+
+
+checkProviderTokenAuthorization : Server.Http.Request -> Result String ( String, String )
+checkProviderTokenAuthorization request =
+    case Dict.get "authorization" request.headers of
+        Nothing ->
+            Err "Missing authorization"
+
+        Just authorization ->
+            let
+                basic =
+                    String.left 6 authorization
+
+                base64 =
+                    String.dropLeft 6 authorization
+            in
+            if basic /= "Basic " then
+                Err ("Unsupported authorization: " ++ authorization)
+
+            else
+                case Base64.decode base64 of
+                    Err _ ->
+                        Err ("Can't decode authorization: " ++ authorization)
+
+                    Ok idAndSecret ->
+                        case String.split ":" idAndSecret of
+                            [ id, secret ] ->
+                                Ok ( id, secret )
+
+                            _ ->
+                                Err
+                                    ("Basic authorization not 'id:secret': "
+                                        ++ idAndSecret
+                                    )
+
+
+type alias ProviderTokenRequest =
+    { clientId : Maybe String
+    , clientSecret : Maybe String
+    }
+
+
+type alias MaybeProviderTokenRequest =
+    { grantType : Maybe String
+    , code : Maybe String
+    , clientId : Maybe String
+    , clientSecret : Maybe String
+    }
+
+
+authorizationCodeGrantType : String
+authorizationCodeGrantType =
+    "authorization_code"
+
+
+parseProviderTokenRequest : Url -> Maybe ProviderTokenRequest
+parseProviderTokenRequest url =
+    case Parser.parse providerTokenParser { url | path = "" } of
+        Just { grantType, code, clientId, clientSecret } ->
+            case ( grantType, code ) of
+                ( Just gt, Just _ ) ->
+                    if gt == authorizationCodeGrantType then
+                        Just <| ProviderTokenRequest clientId clientSecret
+
+                    else
+                        Nothing
+
+                _ ->
+                    Nothing
+
+        _ ->
+            Nothing
+
+
+providerTokenParser =
+    Parser.top
+        <?> Query.map4 MaybeProviderTokenRequest
+                (Query.string "grant_type")
+                (Query.string "code")
+                (Query.string "client_id")
+                (Query.string "client_secret")
+
+
+{-| This was needed before the update to truqu/elm-oauth2 4.0.0.
+
+I don't see it in the new source, so I've included it.
+
+-}
+adjustRequest : RequestParts a -> RequestParts ResponseToken
 adjustRequest req =
     let
         headers =
             Http.header "Accept" "application/json" :: req.headers
+
+        expect =
+            Http.expectJson ResponseToken.responseTokenDecoder
     in
-    { req | headers = headers }
+    { method = req.method
+    , headers = headers
+    , url = req.url
+    , body = req.body
+    , expect = expect
+    , timeout = req.timeout
+    , withCredentials = req.withCredentials
+    }
 
 
-tokenRequest : RedirectState -> String -> Model -> Result String (Http.Request AuthenticationSuccess)
+tokenRequest : RedirectState -> String -> Model -> Result String (Http.Request ResponseToken)
 tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code model =
     let
         key =
@@ -475,7 +695,7 @@ tokenRequest { clientId, tokenUri, redirectUri, scope, redirectBackUri } code mo
                 Just { clientSecret, redirectBackHosts } ->
                     case LE.find (\rbh -> rbh.host == host) redirectBackHosts of
                         Nothing ->
-                            Err <| "Unknown redirect host: " ++ host
+                            Err <| "Unknown redirectBack host: " ++ host
 
                         Just { ssl } ->
                             if ssl && protocol /= Url.Https then
@@ -514,29 +734,21 @@ authRequest code b64State url request model =
         cmd =
             case Base64.decode b64State of
                 Err _ ->
-                    Server.Http.send <|
-                        Server.Http.textResponse
-                            Server.Http.badRequestStatus
-                            ("State not base64 encoded: " ++ b64State)
-                            request.id
+                    badRequestCmd
+                        ("State not base64 encoded: " ++ b64State)
+                        request
 
                 Ok state ->
                     case ED.decodeRedirectState state of
                         Err err ->
-                            Server.Http.send <|
-                                Server.Http.textResponse
-                                    Server.Http.badRequestStatus
-                                    ("Malformed state: " ++ state)
-                                    request.id
+                            badRequestCmd
+                                ("Malformed state: " ++ state)
+                                request
 
                         Ok redirectState ->
                             case tokenRequest redirectState code model of
                                 Err msg ->
-                                    Server.Http.send <|
-                                        Server.Http.textResponse
-                                            Server.Http.badRequestStatus
-                                            msg
-                                            request.id
+                                    badRequestCmd msg request
 
                                 Ok tr ->
                                     Http.send

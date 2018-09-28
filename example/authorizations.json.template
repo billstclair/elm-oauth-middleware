@@ -37,5 +37,23 @@
     "clientId": "<FILL IN HERE>",
     "redirectUri": "<FILL IN HERE>",
     "scopes": {"read": "read"}
+  },
+  { "comment": "This one is for local testing.",
+    "name": "local success",
+    "authorizationUri": "http://localhost:3001/authorize",
+    "tokenUri": "http://localhost:3001/authenticate",
+    "apiUri": "https://api.github.com/",
+    "clientId": "succeed",
+    "redirectUri": "http://localhost:3001",
+    "scopes": {"user": "user"}
+  },
+  { "comment": "Also for local testing.",
+    "name": "local failure",
+    "authorizationUri": "http://localhost:3001/authorize",
+    "tokenUri": "http://localhost:3001/authenticate",
+    "apiUri": "https://api.github.com/",
+    "clientId": "fail",
+    "redirectUri": "http://localhost:3001",
+    "scopes": {"user": "user"}
   }
-]
+  ]

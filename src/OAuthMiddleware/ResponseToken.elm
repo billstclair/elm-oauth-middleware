@@ -76,7 +76,7 @@ responseTokenDecoder =
     Json.map5 makeResponseToken
         tokenDecoder
         AC.defaultExpiresInDecoder
-        AC.defaultRefreshTokenDecoder
+        refreshTokenDecoder
         AC.defaultScopeDecoder
         stateDecoder
 
@@ -119,6 +119,18 @@ tokenDecoder =
         Json.map2 makeToken
             (Json.field "token_type" Json.string |> Json.map Just)
             (Json.field "access_token" Json.string |> Json.map Just)
+
+
+{-| Json decoder for a refresh token.
+
+Changed from AC.defaultRefreshTokenDecoder to allow lowercase "bearer".
+
+-}
+refreshTokenDecoder : Json.Decoder (Maybe Token)
+refreshTokenDecoder =
+    Json.map2 makeToken
+        (Json.field "token_type" Json.string |> Json.map Just)
+        (Json.field "refresh_token" Json.string |> Json.maybe)
 
 
 {-| Combinator for JSON decoders to extract values from a `Maybe` or fail
