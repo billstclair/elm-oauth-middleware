@@ -20,6 +20,8 @@ module OAuthMiddleware.ResponseToken exposing
 
 `ResponseToken` and its decoders were removed from truqu/elm-oauth2 version 4.0.0. This module is a copy of the version 3.0.0 code.
 
+Most user code will never use this module, except indirectly, via `OAuthMiddleware`.
+
 
 ## Types
 
