@@ -503,9 +503,57 @@ errorAndStateParser =
                 (Query.string "state")
 
 
+fixUrlQuery : Url -> Url
+fixUrlQuery url =
+    case url.query of
+        Nothing ->
+            url
+
+        Just query ->
+            let
+                len =
+                    String.length query
+
+                doit count =
+                    if count <= 0 then
+                        url
+
+                    else
+                        let
+                            q =
+                                String.left (len - count) query
+                                    ++ String.repeat count "%3D"
+                        in
+                        { url | query = Just q }
+
+                loop count =
+                    if count >= len then
+                        doit count
+
+                    else
+                        let
+                            right =
+                                String.right (count + 1) query
+
+                            c0 =
+                                String.left 1 right
+                        in
+                        if c0 == "=" then
+                            loop (count + 1)
+
+                        else
+                            doit count
+            in
+            loop 0
+
+
 parseErrorAndState : Url -> Maybe ( String, String )
 parseErrorAndState url =
-    case Parser.parse errorAndStateParser { url | path = "" } of
+    let
+        u =
+            fixUrlQuery url
+    in
+    case Parser.parse errorAndStateParser { u | path = "" } of
         Just ( error, Just state ) ->
             let
                 errmsg =
