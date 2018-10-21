@@ -3,7 +3,7 @@
     "name": "billstclair/elm-oauth-middleware",
     "summary": "elm-oauth-middleware implements an OAuth authorization scheme.",
     "license": "MIT",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "exposed-modules": [
         "OAuthMiddleware",
         "OAuthMiddleware.EncodeDecode",
