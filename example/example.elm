@@ -112,7 +112,7 @@ apis =
             }
           )
         , ( "Gab"
-          , { getUser = "me" -- "users/{username}"
+          , { getUser = "users/Xossbow" -- "me/"
             }
           )
         ]
@@ -167,7 +167,7 @@ init _ url key =
                     p
 
                 Nothing ->
-                    "GitHub"
+                    "Gab"
       , tokenAuthorization = Nothing
       , api = Nothing
       }

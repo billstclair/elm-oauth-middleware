@@ -10,7 +10,7 @@
 ----------------------------------------------------------------------
 
 
-port module OAuthTokenServer exposing (main)
+port module OAuthTokenServer exposing (main, parseCodeAndState, parseErrorAndState)
 
 import Base64
 import Browser
@@ -262,27 +262,33 @@ update msg model =
                                         success.scope
                                 , state = state
                                 }
-
-                base64 =
-                    Base64.encode string
-
-                location =
-                    redirectBackUri ++ "#" ++ base64
-
-                response =
-                    Server.Http.emptyResponse
-                        Server.Http.foundStatus
-                        id
-                        |> Server.Http.addHeader "location" location
             in
             ( model
-            , Server.Http.send response
+            , sendResponse id redirectBackUri string
             )
 
         NoOp ->
             ( model
             , Cmd.none
             )
+
+
+sendResponse : Server.Http.Id -> String -> String -> Cmd Msg
+sendResponse id redirectBackUri json =
+    let
+        base64 =
+            Base64.encode json
+
+        location =
+            redirectBackUri ++ "#" ++ base64
+
+        response =
+            Server.Http.emptyResponse
+                Server.Http.foundStatus
+                id
+                |> Server.Http.addHeader "location" location
+    in
+    Server.Http.send response
 
 
 {-| The request comes from the authorization server, and is of the form:
@@ -308,6 +314,15 @@ badRequestCmd message request =
         Server.Http.textResponse
             Server.Http.badRequestStatus
             message
+            request.id
+
+
+fourOhFourCmd : Server.Http.Request -> Cmd Msg
+fourOhFourCmd request =
+    Server.Http.send <|
+        Server.Http.textResponse
+            Server.Http.notFoundStatus
+            "404: Not Found"
             request.id
 
 
@@ -338,10 +353,45 @@ redirectUriRequest request model =
                                 model
 
                         Nothing ->
+                            let
+                                ( error, b64State ) =
+                                    case parseErrorAndState url of
+                                        Just res ->
+                                            res
+
+                                        _ ->
+                                            ( "Missing state", "" )
+
+                                state =
+                                    Base64.decode b64State
+                                        |> Result.toMaybe
+
+                                redirectBackUri =
+                                    case state of
+                                        Nothing ->
+                                            Nothing
+
+                                        Just st ->
+                                            case ED.decodeRedirectState st of
+                                                Err err ->
+                                                    Nothing
+
+                                                Ok redirectState ->
+                                                    Just redirectState.redirectBackUri
+                            in
                             ( model
-                            , badRequestCmd
-                                "Bad request, missing code/state"
-                                request
+                            , case redirectBackUri of
+                                Just uri ->
+                                    sendResponse request.id uri <|
+                                        ED.encodeResponseTokenError
+                                            { err = error
+                                            , state = state
+                                            }
+
+                                Nothing ->
+                                    badRequestCmd
+                                        "Bad request, missing code/state"
+                                        request
                             )
 
 
@@ -444,6 +494,34 @@ parseCodeAndState url =
             Nothing
 
 
+{-| The signature really isn't interesting here.
+-}
+errorAndStateParser =
+    Parser.top
+        <?> Query.map2 Tuple.pair
+                (Query.string "error")
+                (Query.string "state")
+
+
+parseErrorAndState : Url -> Maybe ( String, String )
+parseErrorAndState url =
+    case Parser.parse errorAndStateParser { url | path = "" } of
+        Just ( error, Just state ) ->
+            let
+                errmsg =
+                    case error of
+                        Just e ->
+                            e
+
+                        Nothing ->
+                            "Missing code/state"
+            in
+            Just ( errmsg, state )
+
+        _ ->
+            Nothing
+
+
 authRequest : String -> String -> Url -> Server.Http.Request -> Model -> ( Model, Cmd Msg )
 authRequest code b64State url request model =
     let
@@ -464,7 +542,11 @@ authRequest code b64State url request model =
                         Ok redirectState ->
                             case tokenRequest redirectState code model of
                                 Err msg ->
-                                    badRequestCmd msg request
+                                    let
+                                        ignore =
+                                            Debug.log msg msg
+                                    in
+                                    fourOhFourCmd request
 
                                 Ok tr ->
                                     Http.send

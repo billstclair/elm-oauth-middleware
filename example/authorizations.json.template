@@ -55,5 +55,14 @@
     "clientId": "fail",
     "redirectUri": "http://localhost:3001",
     "scopes": {"user": "user"}
+  },
+  { "comment": "Also for local testing.",
+    "name": "local authorization error",
+    "authorizationUri": "http://localhost:3001/authorize",
+    "tokenUri": "http://localhost:3001/authenticate",
+    "apiUri": "https://api.github.com/",
+    "clientId": "error",
+    "redirectUri": "http://localhost:3001",
+    "scopes": {"user": "user"}
   }
-  ]
+]

@@ -48,10 +48,17 @@ handleAuthorization authorization request model =
             authorization
 
         query =
-            Builder.relative []
-                [ Builder.string "code" "xyzzy"
-                , Builder.string "state" state
-                ]
+            if clientId == "error" then
+                Builder.relative []
+                    [ Builder.string "error" "authorization error"
+                    , Builder.string "state" state
+                    ]
+
+            else
+                Builder.relative []
+                    [ Builder.string "code" "xyzzy"
+                    , Builder.string "state" state
+                    ]
 
         location =
             redirectUri ++ query

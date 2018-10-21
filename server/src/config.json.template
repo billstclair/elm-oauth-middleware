@@ -27,5 +27,10 @@
    "clientId": "fail",
    "clientSecret": "secret",
    "redirectBackHosts": ["localhost", "xossbowdev.com" ]
+  },
+  {"tokenUri": "http://localhost:3001/authenticate",
+   "clientId": "error",
+   "clientSecret": "secret",
+   "redirectBackHosts": ["localhost", "xossbowdev.com" ]
   }
 ]
