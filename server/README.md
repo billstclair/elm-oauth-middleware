@@ -65,7 +65,7 @@ The server is configured by a file named `config.json` in its `build` directory.
      }
     ]
     
-The `port` and `configSamplePeriod` object is optional, and may appear only once. It sets the TCP port to listen on, and the time between probes looking for updates to `config.json`. Both `port` and `configSamplePeriod` are optional, and default to the values shown above. If `configSamplePerios` is less than or equal to zero, the server will NOT probe for updates, and you'll have to stop and restart it to read an updated `config.json`.
+The `port` and `configSamplePeriod` object is optional, and may appear only once. It sets the TCP port to listen on, and the time between probes looking for updates to `config.json`. Both `port` and `configSamplePeriod` are optional, and default to the values shown above. If `configSamplePeriod` is less than or equal to zero, the server will NOT probe for updates, and you'll have to stop and restart it to read an updated `config.json`.
 
 `tokenUri` and `clientId` are included in the `Authorization` fetched by `OAuthMiddleware.getAuthorization`. `redirectBackHosts` is a list of acceptable hosts for the `redirectUri` field in an `Authorization`. If a host name is prefixed with `https://`, then the incoming `redirectBackUri` must also be for the `https` protocol.
 

@@ -38,7 +38,7 @@ import Http
 import Json.Decode as JD exposing (Decoder)
 import Json.Encode as JE exposing (Value)
 import OAuth
-import OAuth.AuthorizationCode as AuthorizationCode
+import OAuth.AuthorizationCode as AuthorizationCode exposing (RequestParts)
 import OAuthMiddleware.EncodeDecode as ED
 import OAuthMiddleware.ResponseToken as ResponseToken
 import Task exposing (Task)
@@ -76,25 +76,24 @@ type alias Authorization =
     ED.Authorization
 
 
-getNoCache : Bool -> String -> Decoder a -> Http.Request a
-getNoCache useCache url decoder =
-    Http.request
-        { method = "GET"
-        , headers =
-            if useCache then
-                []
+getNoCache : (Result Http.Error a -> msg) -> Bool -> String -> Decoder a -> RequestParts msg
+getNoCache tagger useCache url decoder =
+    { method = "GET"
+    , headers =
+        if useCache then
+            []
 
-            else
-                [ Http.header
-                    "Cache-Control"
-                    "no-cache, no-store, must-revalidate"
-                ]
-        , url = url
-        , body = Http.emptyBody
-        , expect = Http.expectJson decoder
-        , timeout = Nothing
-        , withCredentials = False
-        }
+        else
+            [ Http.header
+                "Cache-Control"
+                "no-cache, no-store, must-revalidate"
+            ]
+    , url = url
+    , body = Http.emptyBody
+    , expect = Http.expectJson tagger decoder
+    , timeout = Nothing
+    , tracker = Nothing
+    }
 
 
 {-| Get a JSON file encoding an `Authorization`.
@@ -121,9 +120,9 @@ Your client secret is stored with the redirect server, and never leaves that ser
 The example contains more information about this, and a sample authorizations file.
 
 -}
-getAuthorization : Bool -> String -> Http.Request Authorization
-getAuthorization useCache url =
-    getNoCache useCache url ED.authorizationDecoder
+getAuthorization : (Result Http.Error Authorization -> msg) -> Bool -> String -> RequestParts msg
+getAuthorization tagger useCache url =
+    getNoCache tagger useCache url ED.authorizationDecoder
 
 
 {-| Get a JSON file encoding an `Authorization` list.
@@ -133,9 +132,9 @@ getAuthorization useCache url =
 If `useCache` is true, will use the browser's cache, meaning that it may not immediately notice changes to the file on the server.
 
 -}
-getAuthorizations : Bool -> String -> Http.Request (List Authorization)
-getAuthorizations useCache url =
-    getNoCache useCache url ED.authorizationsDecoder
+getAuthorizations : (Result Http.Error (List Authorization) -> msg) -> Bool -> String -> RequestParts msg
+getAuthorizations tagger useCache url =
+    getNoCache tagger useCache url ED.authorizationsDecoder
 
 
 protocolString : Url.Protocol -> String
@@ -266,9 +265,9 @@ receiveTokenAndState url =
 
 {-| Use a token to add authenticatication to a request header.
 
-A thin wrapper around `OAuth.use`.
+A thin wrapper around `OAuth.useToken`.
 
 -}
 use : ResponseToken -> List Http.Header -> List Http.Header
-use responseToken headers =
-    OAuth.useToken responseToken.token headers
+use responseToken =
+    OAuth.useToken responseToken.token
