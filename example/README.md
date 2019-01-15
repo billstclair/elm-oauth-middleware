@@ -51,3 +51,7 @@ Now aim your browser at http://oauth-client-dev.com:8000/example.elm
 You can select a "Provider", and click "Login" to authenticate and get a token from your callback server. Then you can click "Get User" to send an API request for user information.
 
 If you use a provider other than the four I put in `authorizations.json.template`, you'll have to add a `getUser` settings for your provider to the `apis` constant in `example.elm`.
+
+# Local testing
+
+For local testing, there are three configurations with `authorizationUri`, `tokenUri`, and `redirectUri` on `localhost:3001`. They have `clientId` values of `"succeed"`, `"fail"`, and `"error"` to simulate those three return types. If your local server is configured to support those, they will fake the authorization server redirect and token creation. They are primarily for my own testing while debugging the code, so you probably won't use them.

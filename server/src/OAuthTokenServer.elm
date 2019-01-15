@@ -2,7 +2,7 @@
 --
 -- OAuthTokenServer.elm
 -- Top-level file for OAuthMiddleware redirectBackUri server.
--- Copyright (c) 2017-2018 Bill St. Clair <billstclair@gmail.com>
+-- Copyright (c) 2017-2019 Bill St. Clair <billstclair@gmail.com>
 -- Some rights reserved.
 -- Distributed under the MIT License
 -- See LICENSE

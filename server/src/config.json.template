@@ -16,19 +16,19 @@
    "clientSecret": "secret",
    "redirectBackHosts": ["https://example.com", "oauth-client-dev.com"]
   },
-  {"comment": "The two below are for local testing."
+  {"comment": "The three below are for local testing."
   },
-  {"tokenUri": "http://localhost:3001/authenticate",
+  {"tokenUri": "http://localhost:3000/authenticate",
    "clientId": "succeed",
    "clientSecret": "secret",
    "redirectBackHosts": ["localhost", "xossbowdev.com" ]
   },
-  {"tokenUri": "http://localhost:3001/authenticate",
+  {"tokenUri": "http://localhost:3000/authenticate",
    "clientId": "fail",
    "clientSecret": "secret",
    "redirectBackHosts": ["localhost", "xossbowdev.com" ]
   },
-  {"tokenUri": "http://localhost:3001/authenticate",
+  {"tokenUri": "http://localhost:3000/authenticate",
    "clientId": "error",
    "clientSecret": "secret",
    "redirectBackHosts": ["localhost", "xossbowdev.com" ]

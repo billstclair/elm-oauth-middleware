@@ -2,7 +2,7 @@
 --
 -- GitHubExample.elm
 -- Example of using OAuthMiddleware for GitHub.
--- Copyright (c) 2017 Bill St. Clair <billstclair@gmail.com>
+-- Copyright (c) 2017-2019 Bill St. Clair <billstclair@gmail.com>
 -- Some rights reserved.
 -- Distributed under the MIT License
 -- See LICENSE
@@ -172,8 +172,8 @@ init _ url key =
       , api = Nothing
       }
     , Cmd.batch
-        [ Http.send ReceiveAuthorizations <|
-            getAuthorizations False "authorizations.json"
+        [ Http.request <|
+            getAuthorizations ReceiveAuthorizations False "authorizations.json"
         , Navigation.replaceUrl key "#"
         ]
     )
@@ -202,14 +202,12 @@ getUser model =
                                 , headers = use token [ userAgentHeader ]
                                 , url = url
                                 , body = Http.emptyBody
-                                , expect = Http.expectJson JD.value
+                                , expect = Http.expectJson ReceiveUser JD.value
                                 , timeout = Nothing
-                                , withCredentials = False
+                                , tracker = Nothing
                                 }
                     in
-                    ( model
-                    , Http.send ReceiveUser req
-                    )
+                    ( model, req )
 
                 _ ->
                     ( { model | msg = Just "No known API." }

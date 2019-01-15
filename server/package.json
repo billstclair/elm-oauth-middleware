@@ -2,8 +2,8 @@
   "name": "elm-oauth-middleware",
   "version": "1.0.0",
   "repository": {
-    "type" : "git"
-  , "url" : "https://github.com/billstclair/elm-oauth-middleware.git"
+    "type" : "git",
+    "url" : "https://github.com/billstclair/elm-oauth-middleware.git"
   },
   "description": "An OAuth redirect server to hide the client secret from web apps.",
   "scripts": {
