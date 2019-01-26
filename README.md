@@ -58,3 +58,7 @@ Unfortunately, that nifty development fake domain can be used by a hacker to min
 He'll still need to have login credentials for the service your client ID and secret unlocks, so any spamming he does will have that account's initials on it. But it will also have your OAuth app's initials on it, so could cause the OAuth provider to censure your account.
 
 I find this risk to be acceptable. You'll need to decide that you do before using this package.
+
+# elm/http version 2.x
+
+Version 3.x or later of `billstclair/elm-oauth-middleware` depends on version 2.x of `elm/http`. If you need a version that depends on version 1.x of `elm/http`, you'll need to use version 2.x of `billstclair/elm-oauth-middleware`.
